@@ -1,0 +1,9 @@
+#include <c.ceu>
+event none tor;
+par/and do
+    await tor;
+    _printf("sml");
+with
+    emit tor;    
+end
+escape 0;

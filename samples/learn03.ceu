@@ -1,0 +1,9 @@
+#include <c.ceu>
+input int A;
+par/and do
+    await A;
+    _printf("7\n");
+with
+    _printf("8\n");
+end
+escape 0;

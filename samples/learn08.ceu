@@ -1,0 +1,5 @@
+#include <c.ceu>
+#include <algorithm.ceu>
+var int abs = call Absolute(-10);
+_printf("%d\n",abs);
+escape 0;

@@ -1,0 +1,13 @@
+#include <c.ceu>
+code/tight Absolute (var int v) -> none do
+    if v > 0 then
+        _printf("%d\n",1);
+        escape;
+    else
+        _printf("%d\n",2);
+        escape;
+    end
+end
+call Absolute(-10);
+
+escape 0;

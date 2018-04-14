@@ -1,0 +1,10 @@
+#include <c.ceu>
+event none tor;
+#define fsds emit
+par/and do
+    await tor;
+    _printf("sml");
+with
+    fsds tor;    
+end
+escape 0;

@@ -1,0 +1,4 @@
+#include <c.ceu>
+#include <algorithm.ceu>
+_printf("d\n");
+escape 0;

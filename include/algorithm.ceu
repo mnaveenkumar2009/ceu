@@ -1,0 +1,7 @@
+code/tight Absolute (var int v) -> int do
+if v > 0 then
+escape v;
+else
+escape -v;
+end
+end

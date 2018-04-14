@@ -1,0 +1,10 @@
+#include <c.ceu>
+code/await Anim (none) -> none do
+_printf("hi\n");
+end
+var int i;
+loop i in [1->10] do
+spawn Anim();
+_printf("%d\n",i);
+end
+escape 0;

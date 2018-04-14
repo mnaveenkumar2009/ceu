@@ -1,0 +1,20 @@
+#include <c.ceu>
+input none A;
+input none B;
+input none C;
+par/and do
+    _printf("1\n");
+    _printf("2\n");
+with
+    _printf("3\n");
+    _printf("4\n");
+with
+    _printf("5\n");
+    _printf("6\n");
+par/or do
+    _printf("7\n");
+with
+    _printf("8\n");
+end
+end
+escape 0;
