@@ -128,6 +128,7 @@ assert(can_cross==nil)
         old.__dcls_old = true
     end
 
+    local F
     local implicit = (me.is_implicit and 'implicit ') or ''
     if not old then
         F = PSS
@@ -140,6 +141,10 @@ assert(can_cross==nil)
             old.__dcls_old = nil
             me.__dcls_old = true
         end
+        F = PSS
+    elseif id == '_ret' then
+        F = PSS
+    elseif __inlines then
         F = PSS
     else
         if me.tag=='Nat' or me.tag=='Ext' then
@@ -233,6 +238,19 @@ DCLS.F = {
             DCLS.F.__prims(me)
             DCLS.F.__prims = nil
         end
+
+        local code = AST.par(me, 'Code')
+        if code and code.__adjs_3==me then
+            local Type = AST.get(code,'', 4,'Block', 1,'Stmts', 1,'Code_Ret', 1,'', 2,'Type')
+            if not Type then
+                local stmts = AST.asr(me,'', 1,'Stmts')
+                AST.set(stmts, #stmts+1,
+                    node('Nat_Stmt', me.ln,
+                        'ceu_assert(0, "reached end of `code`");'))
+                stmts[#stmts].__dcls_endofcode = true
+            end
+        end
+
     end,
     Block__POS = function (me)
         if AST.par(me,'Data') then
@@ -460,6 +478,9 @@ DCLS.F = {
         local _,_,id,_ = unpack(me)
         me.id = id
         dcls_new(AST.par(me,'Block'), me)
+
+        local ID_abs = AST.asr(me,'', 2,'Type', 1,'ID_abs')
+        ID_abs.dcl.__dcls_noinline = true
     end,
 
     Evt = function (me)
@@ -572,12 +593,20 @@ error'oi'
     -- detect "base" dynamic multimethod: create dummy copy with plain "id"
     Code__PRE = function (me)
         local mods,id = unpack(me)
+
+        local blk = AST.par(me, 'Block')
+        local base = DCLS.get(blk, id, nil, true)
+        me.base = base or me
+
+        if me.is_impl then
+            me.base.impl = me
+        end
+
         if not mods.dynamic then
             return  -- not dynamic code
         end
 
-        local old = DCLS.get(AST.par(me,'Block'), id)
-        if old then
+        if me.base ~= me then
             ASR(me.is_impl, me, 'not implemented : prototype for non-base dynamic code')
             return  -- not first appearence
         end
@@ -593,7 +622,7 @@ error'oi'
             return
         end
 
-        local proto_body = AST.asr(me,'', 4,'Block', 1,'Stmts', 2,'Do', 3,'Block', 1,'Stmts', 2,'Block',1,'Stmts')
+        local proto_body = AST.asr(me.__adjs_1,'Block',1,'Stmts')
         local orig = proto_body[2]
         AST.set(proto_body, 2, node('Stmts', me.ln))
         local new = AST.copy(me)
@@ -603,6 +632,9 @@ error'oi'
         new.id = id
         new.is_dyn_base = true
         new.dyns = {}
+        new.__adjs_1 = AST.get(new,'Code', 4,'Block', 1,'Stmts', 2,'Do', 3,'Block')
+                        or AST.asr(new,'Code', 4,'Block', 1,'Stmts', 2,'Stmts', 2,'Do', 3,'Block')
+-- TODO: _2/_3
 
         local s = node('Stmts', me.ln, new, me)
         return s
@@ -617,12 +649,14 @@ error'oi'
         me.depth = 0
         local par = AST.par(me, 'Code')
         while par do
+            me.__dcls_depth  = true
+            par.__dcls_depth = true
             par = AST.par(par, 'Code')
             me.depth = me.depth + 1
         end
 
         local blk = AST.par(me, 'Block')
-        local proto1 = AST.asr(body1,'Block', 1,'Stmts', 2,'Do', 3,'Block', 1,'Stmts', 1,'Code_Pars')
+        local proto1 = AST.asr(me.__adjs_1,'Block', 1,'Stmts', 1,'Code_Pars')
 
         if (not me.is_dyn_base) and mods1.dynamic and me.is_impl then
             me.id = id..proto1.ids_dyn
@@ -663,7 +697,8 @@ error'oi'
             end
 
             -- compare ins
-            local proto2 = AST.asr(body2,'Block',1,'Stmts',2,'Do',3,'Block',1,'Stmts',1,'Code_Pars')
+            local proto2 = AST.asr(old.__adjs_1,'Block',1,'Stmts',1,'Code_Pars')
+
             local ok = AST.is_equal(proto1, proto2)
 
             -- compare mods
@@ -687,15 +722,14 @@ error'oi'
                 '(vs. '..proto1.ln[1]..':'..proto2.ln[2]..')')
         else
             dcls_new(blk,me)
-            assert(me == DCLS.get(blk,me.id))
+            assert(me == DCLS.get(blk,me.id,nil,true))
 
             if not mods1.dynamic then
                 dcls_new(blk,me,nil,{id=id})
-                assert(me == DCLS.get(blk,id))
+                assert(me == DCLS.get(blk,id,nil,true))
             end
         end
-        me.is_used = (old and old.is_used)
-                        or (mods1.dynamic and (not me.is_dyn_base))
+        me.is_used = me.base.is_used or (mods1.dynamic and (not me.is_dyn_base))
     end,
 
     Data__PRE = function (me)
@@ -806,6 +840,10 @@ error'oi'
             return
         end
 
+if not __inlines then
+        code.dcl.base.__dcls_uses = (code.dcl.base.__dcls_uses or 0) + 1
+end
+
         if me.__dcls_ok then
             EXPS.F.Abs_Cons(me)
             return
@@ -826,7 +864,7 @@ error'oi'
                         node('Loc', v.ln,
                             node('ID_int', v.ln, id)))
             elseif v.tag == 'ID_any' then
-                local vars = AST.asr(code.dcl,'Code', 4,'Block', 1,'Stmts', 2,'Do', 3,'Block').dcls
+                local vars = code.dcl.__adjs_1.dcls
                 if vars[i] then
                     local is_alias,tp = unpack(vars[i])
                     if not is_alias then
@@ -867,6 +905,12 @@ error'oi'
         if not is_pending then
             EXPS.F.Abs_Cons(me)
         end
+    end,
+
+    Abs_Spawn = function (me)
+        local _, Abs_Cons = unpack(me)
+        local _, ID_abs = unpack(Abs_Cons)
+        ID_abs.dcl.__dcls_noinline = AST.get(me, 1, 'Set_Abs_Spawn')
     end,
 
     Stmts__POS = function (me)
@@ -916,7 +960,7 @@ error'oi'
             if obj then
                 assert(obj.info.tp)
                 local Code = TYPES.abs_dcl(obj.info.tp, 'Code')
-                blk = AST.asr(Code,'Code', 4,'Block', 1,'Stmts', 2,'Do', 3,'Block', 1,'Stmts', 2,'Block', 1,'Stmts', 2,'Block')
+                blk = Code.__adjs_3 --AST.asr(Code,'Code', 4,'Block', 1,'Stmts', 2,'Do', 3,'Block', 1,'Stmts', 2,'Block', 1,'Stmts', 2,'Block')
             else
                 blk = AST.par(me,'Block')
             end
@@ -928,7 +972,7 @@ error'oi'
         local id = unpack(me)
         local blk = AST.par(me,'Block')
         local can_cross = false
-        do
+        if id ~= '_ret' then
             -- escape should refer to the parent "a"
             -- var int a = do var int a; ... escape ...; end;
             local set = AST.par(me,'Set_Exp')
@@ -962,7 +1006,7 @@ error'oi'
                 if dcl then
                     me.dcl = DCLS.asr(me, dcl, member, false, 'field')
                 else
-                    dcl = AST.asr(abs.dcl,'Code',4,'Block',1,'Stmts',2,'Do',3,'Block',1,'Stmts',2,'Block')
+                    dcl = abs.dcl.__adjs_2
                     me.dcl = DCLS.asr(me, dcl, member, false, 'parameter')
                 end
             else
@@ -1015,45 +1059,46 @@ error'oi'
             'invalid `continue` : expected matching enclosing `loop`')
     end,
 
-    TODO__POS = function (me)
-        local id = unpack(me)
-        if id == 'escape' then
-            local _, esc = unpack(me)
-            local id_int1 = (esc[1]==true) or esc[1][1]
-            local do_ = nil
-            for n in AST.iter() do
-                if string.sub(n.tag,1,5)=='Async' or n.tag=='Data' or n.tag=='Code'
-                    -- or n.tag=='Ext_Code_impl' or n.tag=='Ext_Req_impl'
-                then
+    Escape__PRE = function (me)
+        local id_int1 = (me[1]==true) or me[1][1]
+        me.outer = nil
+        for n in AST.iter() do
+            if string.sub(n.tag,1,5)=='Async' or n.tag=='Data' or n.tag=='Code'
+                -- or n.tag=='Ext_Code_impl' or n.tag=='Ext_Req_impl'
+            then
+                break
+            end
+            if n.tag == 'Do' then
+                local id_int2 = (n[1]==true) or n[1][1]
+                if id_int1 == id_int2 then
+                    me.outer = n
                     break
                 end
-                if n.tag == 'Do' then
-                    local id_int2 = (n[1]==true) or n[1][1]
-                    if id_int1 == id_int2 then
-                        do_ = n
-                        break
-                    end
-                end
             end
-            ASR(do_, esc, 'invalid `escape` : no matching enclosing `do`')
-            esc.outer = do_
-            local _,outer,_,to = unpack(do_)
-            local set = AST.get(me.__par,'Set_Exp') or AST.asr(me.__par,'Set_Alias')
-            set.__dcls_is_escape = do_
-            local fr = unpack(set)
-            if to and type(to)~='boolean' then
-                ASR(type(fr)~='boolean', me,
-                    'invalid `escape` : expected expression')
-                to.__dcls_is_escape = true
-                return AST.copy(to)
-            else
-                ASR(type(fr)=='boolean', me,
-                    'invalid `escape` : unexpected expression')
-                set.tag = 'Nothing'
-                return node('Nothing', me.ln)
-            end
+        end
+        ASR(me.outer, me, 'invalid `escape` : no matching enclosing `do`')
+    end,
+
+    Set_Alias__PRE = 'Set_Exp__PRE',
+    Set_Exp__PRE = function (me)
+        if me.__par.tag ~= 'Escape' then
+            return
+        end
+
+        local do_ = assert(me.__par.outer)
+        me.__dcls_is_escape = do_
+
+        local _,_,_,to = unpack(do_)
+        local fr = unpack(me)
+        if to and type(to)~='boolean' then
+            ASR(type(fr)~='boolean', me,
+                'invalid `escape` : expected expression')
+            to.__dcls_is_escape = true
+            AST.set(me, 2, AST.copy(to))
         else
-            error'bug found'
+            ASR(type(fr)=='boolean', me,
+                'invalid `escape` : unexpected expression')
+            return node('Nothing', me.ln)
         end
     end,
 }

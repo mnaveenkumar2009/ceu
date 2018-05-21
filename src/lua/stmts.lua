@@ -8,7 +8,7 @@ STMTS.F = {
         local fr, to = unpack(me)
 
         local err do
-            if AST.get(me.__par,'Stmts', me.__i+1,'Escape') then
+            if me.__par.tag == 'Escape' then
                 err = 'invalid `escape`'
             else
                 err = 'invalid assignment'
@@ -284,12 +284,9 @@ STMTS.F = {
             'invalid assignment : `input`')
     end,
 
-    Set_Await_one = function (me)
+    Set_Await_Wclock = function (me)
         local fr, to = unpack(me)
-        assert(fr.tag=='Await_Wclock' or fr.tag=='Abs_Spawn' or fr.tag=='Await_Int')
-
         EXPS.check_tp(me, to.info.tp, fr.tp or fr.info.tp, 'invalid assignment')
-
         if me.__adjs_is_watching then
             -- var int? us = watching 1s do ... end
             ASR(TYPES.check(to.info.tp,'?'), me,
@@ -297,7 +294,13 @@ STMTS.F = {
         end
     end,
 
-    Set_Await_many = function (me)
+    Set_Abs_Await = function (me)
+        local fr, to = unpack(me)
+        ASR(fr.tp, me, 'invalid assignment : `code` executes forever')
+        STMTS.F.Set_Await_Wclock(me)
+    end,
+
+    Set_Await_Ext = function (me)
         local fr, to = unpack(me)
 
         -- ctx
@@ -305,12 +308,6 @@ STMTS.F = {
             if Loc.tag ~= 'ID_any' then
                 INFO.asr_tag(Loc, {'Nat','Var'}, 'invalid assignment')
             end
-        end
-
-        -- tp
-        if fr.tag == 'Await_Int' then
-            ASR(fr.tp, me,
-                'invalid assignment : `code` executes forever')
         end
 
         EXPS.check_tp(me, to.tp, fr.tp, 'invalid assignment')
@@ -322,6 +319,12 @@ STMTS.F = {
                     'invalid `watching` assignment : expected option type `?` : got "'..TYPES.tostring(e.info.tp)..'"')
             end
         end
+    end,
+
+    Set_Await_Int = function (me)
+        local fr, _ = unpack(me)
+        ASR(fr.tp, me, 'invalid assignment : `code` executes forever')
+        STMTS.F.Set_Await_Ext(me)
     end,
 
 -- AWAITS
@@ -363,6 +366,7 @@ STMTS.F = {
         me.tp = TYPES.new(me, 'int')
     end,
 
+    Abs_Await = 'Abs_Spawn',
     Abs_Spawn = function (me)
         local mods_call,Abs_Cons = unpack(me)
         local ID_abs = AST.asr(Abs_Cons,'Abs_Cons', 2,'ID_abs')
@@ -382,7 +386,8 @@ STMTS.F = {
                 'invalid `'..AST.tag2id[me.tag]..'` : unexpected `/'..mod..'` modifier')
         end
 
-        ASR(AST.par(me,'Code') ~= me.__code, me,
+        local code = AST.par(me,'Code')
+        ASR((not code) or code.base~=me.__code.base, me,
             'invalid `'..AST.tag2id[me.tag]..'` : unexpected recursive invocation')
 
         local ret = AST.get(me.__code,'', 4,'Block', 1,'Stmts',
@@ -427,7 +432,7 @@ STMTS.F = {
                 end
                 me.tp = AST.node('Typelist', me.ln, AST.copy(tp))
             else
-                -- will fail in Set_Await_many
+                -- will fail in Set_Await_Int
             end
         else
             me.tp = e.info.tp

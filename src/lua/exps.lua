@@ -106,7 +106,7 @@ EXPS.F = {
 
         for watching in AST.iter'Watching' do
             local loc = AST.get(watching,'',1,'Par_Or',1,'Block',1,'Stmts',1,'Await_Int',1,'Loc',1,'')
-                    or  AST.get(watching,'',1,'Par_Or',1,'Block',1,'Stmts',1,'Set_Await_many',1,'Await_Int',1,'Loc',1,'')
+                    or  AST.get(watching,'',1,'Par_Or',1,'Block',1,'Stmts',1,'Set_Await_Int',1,'Await_Int',1,'Loc',1,'')
             if loc then
                 if loc.tag=='ID_int' and AST.is_par(loc,me) then
                     break
@@ -445,8 +445,7 @@ error'TODO: remove below'
                         Dcl = DCLS.asr(me,data,member,false,e.info.id)
                     else
                         local code = AST.asr(ID_abs.dcl,'Code')
-                        Dcl = DCLS.asr(me,
-                                       AST.asr(code,'',4,'Block',1,'Stmts',2,'Do', 3,'Block',1,'Stmts',2,'Block'),
+                        Dcl = DCLS.asr(me, code.__adjs_2,
                                        member,false,e.info.id)
                     end
                     me.info = {
@@ -484,7 +483,7 @@ error'TODO: remove below'
 
         for watching in AST.iter'Watching' do
             local loc = AST.get(watching,'',1,'Par_Or',1,'Block',1,'Stmts',1,'Await_Int',1,'Loc',1,'')
-                    or  AST.get(watching,'',1,'Par_Or',1,'Block',1,'Stmts',1,'Set_Await_many',1,'Await_Int',1,'Loc',1,'')
+                    or  AST.get(watching,'',1,'Par_Or',1,'Block',1,'Stmts',1,'Set_Await_Int',1,'Await_Int',1,'Loc',1,'')
             if AST.is_par(loc,me) then
                 break
             end

@@ -18,7 +18,7 @@ F = {
         --      Stmts
         --          nats
         --          Lock
-        --          Var             -- _ret
+        --          Var             -- _RET
         --          Set
         --              ret
         --              Do
@@ -52,7 +52,7 @@ F = {
                         false,
                         node('Type', me.ln,
                             node('ID_prim', me.ln, 'int')),
-                        '_ret')
+                        '_RET')
         ret.is_implicit = true
 
         local lock = node('Data', me.ln, 'Lock', false,
@@ -132,7 +132,7 @@ F = {
                         ret,
                         node('_Set', me.ln,
                             node('Loc', me.ln,
-                                node('ID_int', me.ln, '_ret')),
+                                node('ID_int', me.ln, '_RET')),
                             node('_Set_Do', me.ln,
                                 node('Do', me.ln,
                                     true, false,
@@ -218,6 +218,8 @@ error'TODO: luacov never executes this?'
     _Code_proto__PRE = function (me)
         local mods, id, ins, mid, out, throws, blk, eoc = unpack(me)
         me.tag = 'Code'
+        local is_impl = (blk ~= false)
+        blk = blk or node('Stmts',me.ln)
 
         mid = mid or node('_Code_Pars', me.ln)
 
@@ -250,7 +252,8 @@ error'TODO: luacov never executes this?'
                                     node('Block', me.ln,
                                         node('Stmts', me.ln,
                                             mid,
-                                            (blk or node('Stmts',me.ln)))))))
+                                            blk)))))
+        set_or_do.__adjs_toplevel_do = mods.await
 
         if Type and (not is_void) then
             set_or_do = node('_Set', me.ln,
@@ -260,20 +263,29 @@ error'TODO: luacov never executes this?'
                                 set_or_do))
         end
 
+        local fin = set_or_do
+        if mods.await then
+            -- TODO: only required in pools or w/ awaits
+            fin = node('Stmts', me.ln,
+                        node('_Finalize', me.ln,
+                            false,
+                            false,
+                            node('Block', me.ln,
+                                node('Stmts', me.ln,
+                                    node('Code_Finalize', me.ln))),
+                            false,
+                            false),
+                        set_or_do)
+        end
+
         local ret = node('Code', me.ln, mods, id, throws,
                         node('Block', me.ln,
                             node('Stmts', me.ln,
                                 node('Code_Ret', me.ln,
                                     out),
-                                set_or_do)),
+                                fin)),
                         eoc)
-        ret.is_impl = (blk ~= false)
-
-        AST.par(ins,'Block').__adjs_1 = true
-        AST.par(mid,'Block').__adjs_2 = true
-        if blk then
-            blk.__adjs_3 = true
-        end
+        ret.is_impl  = is_impl
         ret.__adjs_1 = AST.par(ins,'Block')
         ret.__adjs_2 = AST.par(mid,'Block')
         ret.__adjs_3 = blk
@@ -405,9 +417,9 @@ error'TODO: luacov never executes this?'
         local set_awt
         if to then
             if awt.tag=='Await_Ext' or awt.tag=='Await_Int' then
-                set_awt = node('Set_Await_many', me.ln, awt, to)
+                set_awt = node('Set_'..awt.tag, me.ln, awt, to)
             else
-                set_awt = node('Set_Await_one', me.ln, awt, to)
+                set_awt = node('Set_Await_Wclock', me.ln, awt, to)
             end
         else
             set_awt = awt
@@ -503,7 +515,7 @@ error'TODO: luacov never executes this?'
             --  _Watching
             --      _Set
             --          to
-            --          _Set_Await_many
+            --          _Set_Await_*
             --              Await_*
             --      Block
             local watching = AST.asr(unpack(set),'_Watching')
@@ -543,18 +555,10 @@ error'TODO: luacov never executes this?'
                         awt))
                 return stmts
             end
+            set.tag = '_Set_'..set[1].tag
 
         elseif set.tag == '_Set_Await_one' then
-            local awt = unpack(set)
-            if awt.tag == '_Abs_Await' then
-                awt = F._Abs_Await__PRE(awt)
-                AST.set(awt[1], 3,
-                    node('_Set', me.ln,
-                        to,
-                        node('_Set_Await_many', me.ln,
-                            awt[1][3])))
-                return awt
-            end
+            set.tag = '_Set_'..set[1].tag
         end
 
         -----------------------------------------------------------------------
@@ -587,60 +591,25 @@ error'TODO: luacov never executes this?'
         end
     end,
 
-    Set_Await_many__PRE = function (me)
+    Set_Await_Ext__PRE = 'Set_Await_Int__PRE',
+    Set_Await_Int__PRE = function (me)
         local _,var,_ = unpack(me)
         if var.tag == 'Loc' then
             AST.set(me, 2, node('List_Loc', var.ln, var))
         end
     end,
 
-    _Abs_Await__PRE = function (me)
-        -- await Ff(...)
-        --  to
-        -- do
-        --   var&? Ff f;
-        --   f = spawn Ff(...)
-        --   await f;
-        -- end
-        local _,abs = unpack(me)
-        local ret = node('Block', me.ln,
-                        node('Stmts', me.ln,
-                            node('Var', me.ln,
-                                '&?',
-                                node('Type', me.ln,
-                                    AST.copy(AST.asr(abs,'Abs_Cons',2,'ID_abs'))),
-                                '_spw_'..me.n),
-                            node('_Set', me.ln,
-                                node('Loc', me.ln,
-                                    node('ID_int', me.ln,
-                                        '_spw_'..me.n)),
-                                node('_Set_Abs_Spawn', me.ln,
-                                    node('Abs_Spawn', me.ln,
-                                        unpack(me)))),
-                            node('Await_Int', me.ln,
-                                node('Loc', me.ln,
-                                    node('ID_int', me.ln,
-                                        '_spw_'..me.n)))))
-        AST.asr(ret,'Block').__adjs_is_abs_await = true
-        AST.asr(ret,'Block', 1,'Stmts', 1,'Var').__adjs_is_abs_await = true
-        AST.asr(ret,'Block', 1,'Stmts', 3,'Await_Int').__adjs_is_abs_await = true
-        return ret
-    end,
-
     _Escape__PRE = function (me)
         local _, fr = unpack(me)
 
-        local set = node('Set_Exp', me.ln,
-                        fr,
-                        node('TODO', me.ln, 'escape', me))   -- see dcls.lua
-        -- a = &b   (Set_Exp->Set_Alias)
-        if fr and fr.tag=='Exp_1&' then
-            set.tag = 'Set_Alias'
+        if fr then
+            -- a = &b   (Set_Exp->Set_Alias)
+            local tag = (fr.tag=='Exp_1&' and 'Set_Alias') or 'Set_Exp'
+            AST.set(me, 2, node(tag,me.ln,fr,'TODO-to'))
+        else
+            AST.set(me, 2, node('Set_Exp',me.ln,fr,'TODO-none'))
         end
-
         me.tag = 'Escape'
-        me[2] = nil
-        return node('Stmts', me.ln, set, me)
     end,
 
     _Catch__PRE = function (me)

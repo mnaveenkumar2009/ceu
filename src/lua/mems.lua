@@ -70,13 +70,17 @@ typedef struct tceu_code_mem_ROOT {
     ---------------------------------------------------------------------------
 
     Code__PRE = function (me)
-        me.mems = { me=me, mem='' }
+        me.mems = { me=me, mem='', multis='' }
     end,
     Code__POS = function (me)
         local mods = unpack(me)
 
         if me.is_dyn_base or me.is_impl then
             MEMS.codes[#MEMS.codes+1] = me.mems
+        end
+
+        if me.dyn_base then
+            me.dyn_base.mems.multis = me.dyn_base.mems.multis..'tceu_code_mem_'..me.id_..' _'..me.n..';\n'
         end
 
         if not me.is_impl then
@@ -88,7 +92,10 @@ typedef struct tceu_code_mem_]]..me.id_..[[ {
     tceu_code_mem _mem;
     tceu_trl      _trails[]]..(me.dyn_base and me.dyn_base.max_trails_n or me.trails_n)..[[];
     byte          _params[0];
-    ]]..me.mems.mem..[[
+    union {
+        /* MULTIS */
+        ]]..me.mems.mem..[[
+    };
 } tceu_code_mem_]]..me.id_..[[;
 ]]
     end,
@@ -106,8 +113,7 @@ typedef struct tceu_code_mem_]]..me.id_..[[ {
 
         local multis = {}
         if mods.dynamic then
-            local Code_Pars = AST.asr(body,'', 1,'Stmts', 2,'Do', 3,'Block', 1,'Stmts', 1,'Code_Pars')
-            for i, dcl in ipairs(AST.par(Code_Pars,'Block').dcls) do
+            for i, dcl in ipairs(me.__adjs_1.dcls) do
                 local _,_,_,dcl_mods = unpack(dcl)
                 if dcl_mods.dynamic then
                     local _,Type,id = unpack(dcl)
@@ -199,11 +205,11 @@ CEU_CODE_]]..me.id_..[[ (tceu_code_mem_]]..me.id_..[[ mem_,
                 me.mems.wrapper = me.mems.wrapper .. multis.lbl
             else
                 me.mems.wrapper = me.mems.wrapper .. [[
-    tceu_nlbl lbl = ]]..me.lbl_in.id..[[;
+    tceu_nlbl lbl = ]]..me.lbl.id..[[;
 ]]
             end
             me.mems.wrapper = me.mems.wrapper .. [[
-    ceu_lbl(NULL, NULL, (tceu_code_mem*)mem, 0, lbl);
+    ceu_lbl(0, NULL, NULL, (tceu_code_mem*)mem, lbl, 0);
 ]]
             if Type and (not TYPES.check(Type,'none')) then
                 me.mems.wrapper = me.mems.wrapper..[[
@@ -215,23 +221,18 @@ CEU_CODE_]]..me.id_..[[ (tceu_code_mem_]]..me.id_..[[ mem_,
 ]]
         else
             me.mems.wrapper = me.mems.wrapper .. [[
-static void CEU_CODE_]]..me.id_..[[ (tceu_stk* stk, tceu_ntrl trlK,
-                                     tceu_code_mem_]]..me.id_..[[* mem)
+static tceu_nlbl CEU_CODE_]]..me.id_..[[_to_lbl (tceu_code_mem_]]..me.id_..[[* mem)
 {
 ]]
             if mods.dynamic then
                 me.mems.wrapper = me.mems.wrapper .. multis.lbl
             else
                 me.mems.wrapper = me.mems.wrapper .. [[
-    tceu_nlbl lbl = ]]..me.lbl_in.id..[[;
+    tceu_nlbl lbl = ]]..me.lbl.id..[[;
 ]]
             end
             me.mems.wrapper = me.mems.wrapper .. [[
-    tceu_stk __ceu_stk = { 1, 0, stk, {(tceu_code_mem*)mem,]]..me.trails[1]..','..me.trails[2]..[[} };
-    ceu_lbl(NULL, &__ceu_stk, (tceu_code_mem*)mem, trlK, lbl);
-    CEU_LONGJMP_JMP_((&__ceu_stk));
-]]
-            me.mems.wrapper = me.mems.wrapper .. [[
+    return lbl;
 }
 ]]
         end
@@ -414,7 +415,7 @@ tceu_pool_pak]]..ptr..' '..dcl.id_..[[;
 
         local code = AST.par(me, 'Code')
         local toplevel = ( AST.get(me,1,'Data') or
-                           code and AST.depth(me)<=AST.depth(code.__adjs_2) )
+                           code and code.__adjs_3 and AST.depth(me)<=AST.depth(code.__adjs_3) )
 
         for _, dcl in ipairs(me.dcls) do
 if dcl.tag ~= 'Prim' then
@@ -553,6 +554,7 @@ end
         local _,Abs_Cons = unpack(me)
         CUR().mem = CUR().mem..'tceu_code_mem_'..Abs_Cons.id_..' __mem_'..me.n..';\n'
     end,
+    Abs_Await = 'Abs_Spawn',
 
     ---------------------------------------------------------------------------
 
@@ -733,6 +735,8 @@ for i, code in ipairs(MEMS.codes) do
               mem = string.gsub(mem,
                                 '} tceu_code_mem_'..first.id_..';',
                                 '} tceu_code_mem_'..me.dyn_base.id_..';')
+              mem = string.gsub(mem, '/%* MULTIS %*/',
+                                     me.dyn_base.mems.multis)
         MEMS.codes.mems = MEMS.codes.mems..mem
     end
 end

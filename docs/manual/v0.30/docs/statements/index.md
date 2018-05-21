@@ -5,7 +5,7 @@ block:
 
 ```ceu
 Program ::= Block
-Block   ::= {Stmt `;´} {`;´}
+Block   ::= {Stmt `;´}
 ```
 
 *Note: statements terminated with the `end` keyword do not require a
@@ -28,6 +28,8 @@ terminating semicolon.*
 {!statements/parallel_compositions.md!}
 
 {!statements/pausing.md!}
+
+{!statements/exceptions.md!}
 
 {!statements/asynchronous_execution.md!}
 

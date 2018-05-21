@@ -1,7 +1,6 @@
 --  NO: big = &&small
 local function check_blk (to_blk, fr_blk)
     local Code = AST.par(fr_blk,'Code')
-    local Stmts = Code and AST.get(Code,'',4,'Block',1,'Stmts',4,'Block',1,'Stmts')
 
     -- changes nested watchings to pars
     local watch = AST.par(fr_blk, 'Watching')
@@ -20,12 +19,6 @@ local function check_blk (to_blk, fr_blk)
     if AST.depth(to_blk) >= AST.depth(fr_blk) then
         assert(ok or AST.is_par(fr_blk,to_blk), 'bug found')
         return true
-    elseif Stmts and (
-                AST.get(Stmts,'',1,'Do', 3,'Block')==fr_blk -- code ... -> ...
-            or
-                AST.get(Stmts,'',1,'Block')==fr_blk         -- code ... -> FOREVER
-            ) then
-        return 'maybe'
     else
         --assert(AST.is_par(to_blk,fr_blk), 'bug found')
         return false
@@ -85,15 +78,11 @@ F = {
                         to_blk = to.info.dcl_obj and to.info.dcl_obj.blk or
                                     to.info.dcl.blk
                         ok = check_blk(to_blk, fr_blk)
-                        if to.info.dcl.id=='_ret' and ok=='maybe' then
-                            ok = false
-                        end
                     end
                 end
             end 
             if not ok then
-                local stmts = AST.get(me,1,'Stmts')
-                if stmts and AST.get(stmts,'', #stmts,'Escape') and stmts[#stmts-1]==me then
+                if me.__par.tag == 'Escape' then
                     ASR(false, me, 'invalid `escape` : incompatible scopes')
                 elseif fr_data_ptr then
                     ASR(false, me,
@@ -187,11 +176,12 @@ F = {
             local ok = false
             while watch do
                 local awt = watch and AST.get(watch,'', 1,'Par_Or', 1,'Block', 1,'Stmts', 1,'Await_Int', 1,'')
-                                   or AST.get(watch,'', 1,'Par_Or', 1,'Block', 1,'Stmts', 1,'Set_Await_many',1,'Await_Int', 1,'')
+                                   or AST.get(watch,'', 1,'Par_Or', 1,'Block', 1,'Stmts', 1,'Set_Await_Int',1,'Await_Int', 1,'')
                 if awt and awt.info.dcl==me.info.dcl_obj.orig then
                     if to then
+                        local code = AST.par(me,'Code')
                         -- watching.depth < to.dcl.blk.depth
-                        if to.info.dcl.blk.__adjs_2 then
+                        if code and code.__adjs_2==to.info.dcl.blk then
                             -- ok: allow mid destination binding even outliving source
                             -- TODO: check it is not accessed outside the watching
                             ok = true

@@ -62,11 +62,8 @@ F = {
     Loop_Num = 'Loop',
 
     Code = function (me)
-        local mods = unpack(me)
-        me.lbl_in = new{'Code_'..me.id_, true}
-        if mods.await then
-            me.lbl_clr = new{'Code__CLR'}
-        end
+        me.lbl      = new{'Code_'..me.id_, true}
+        me.lbl_term = new{'Code_'..me.id_..'__TERM'}
     end,
 
     ---------------------------------------------------------------------------
@@ -88,8 +85,17 @@ F = {
 
     ---------------------------------------------------------------------------
 
+    Kill = function (me)
+        me.lbl_clr = new{'Kill__CLR'}
+    end,
+    Abs_Spawn_Pool = function (me)
+        me.lbl_out = new{'Await_Spawn_Pool__OUT'}
+    end,
     Abs_Spawn = function (me)
         me.lbl_out = new{'Await_Spawn__OUT'}
+    end,
+    Abs_Await = function (me)
+        me.lbl_out = new{'Await_Await__OUT'}
     end,
     Await_Wclock = function (me)
         me.lbl_out = new{'Await_Wclock__OUT'}
@@ -112,7 +118,11 @@ F = {
         me.lbl_out = new{'Await_Exception__OUT'}
     end,
 
+    Emit_Evt = function (me)
+        me.lbl_out = new{'Emit_Int__OUT'}
+    end,
     Emit_Wclock = function (me)
+        me.lbl_in  = new{'Emit_Wclock__IN'}
         me.lbl_out = new{'Emit_Wclock__OUT'}
     end,
     Emit_Ext_emit = function (me)

@@ -7,11 +7,9 @@ general characteristics:
 
 - *Reactive*:    code executes in reactions to events.
 - *Structured*:  code uses structured control-flow mechanisms, such as `spawn`
-                 and `await` (to create and suspend an activity).
-- *Synchronous*: event reactions never overlap and run atomically and to
-                 completion on each activity.
-                 There is no implicit preemption or real parallelism, resulting
-                 in deterministic execution.
+                 and `await` (to create and suspend lines of execution).
+- *Synchronous*: event reactions run atomically and to completion on each line
+                 of execution.
 
 <!--
 - Event Handling:
@@ -47,13 +45,13 @@ end
 
 The synchronous concurrency model of Céu greatly diverges from multithreaded
 and actor-based models (e.g. *pthreads* and *erlang*).
-On the one hand, there is no real parallelism at the synchronous kernel of the
-language (i.e., no multi-core execution).
+On the one hand, there is no preemption or real parallelism at the synchronous
+core of the language (i.e., no multi-core execution).
 On the other hand, accesses to shared variables among trails are deterministic
 and do not require synchronization primitives (i.e., *locks* or
 *queues*).
 
-Céu provides static memory management based on lexical scopes and does not
+Céu provides static memory management based on lexical scope and does not
 require a garbage collector.
 
 Céu integrates safely with C, particularly when manipulating external resources
@@ -84,7 +82,7 @@ video output.
 
 ### Synchronous Execution Model
 
-Céu is grounded on a precise definition of *logical time* (as opposed to
+Céu is grounded on a precise notion of *logical time* (as opposed to
 *physical*) as a discrete sequence of input events:
 a sequence because only a single input event is handled at a logical time; 
 discrete because reactions to events are guaranteed to execute in bounded
@@ -203,7 +201,7 @@ rejoin and proceed to the statement in sequence:
 
 As mentioned in the introduction and emphasized in the execution model, trails
 in parallel do not execute with real parallelism.
-Therefore, it is important to note that parallel compositions provide
+Therefore, it is important to note that parallel compositions support
 *awaiting in parallel*, rather than *executing in parallel* (see
 [Asynchronous Threads](statements/#thread) for real parallelism support).
 <!--
@@ -261,10 +259,10 @@ runtime stack:
     (see [`rule 2`](#synchronous-execution-model) for external reactions).
     If an awaking trail emits another internal event, a nested internal
     reaction starts with `rule 1`.
-3. The top of stack is popped and the last emitting trail resumes execution
+3. The top of the stack is popped and the last emitting trail resumes execution
     from its continuation.
 
-The program and follow illustrates the behavior of internal reactions in Céu:
+The program as follow illustrates the behavior of internal reactions in Céu:
 
 ```ceu
 1:  par/and do      // trail 1
@@ -345,6 +343,8 @@ for variables and events):
     var             watching        with            yes
 ```
 
+`TODO: catch, throw, throws`
+
 ### Identifiers
 
 Céu uses identifiers to refer to *types* (`ID_type`), *variables* (`ID_int`),
@@ -369,7 +369,7 @@ ID_type  ::= ( ID_nat | ID_abs
              | s8    | s16    | s32     | s64
              | u8    | u16    | u32     | u64
              | int   | uint   | integer
-             | ssize   | usize )
+             | ssize | usize )
 ```
 
 Declarations for [`code` and `data` abstractions](../statements/#abstractions)
@@ -409,7 +409,7 @@ The boolean type has only two possible values: `true` and `false`.
 
 The boolean values `on` and `yes` are synonymous to `true` and can be used
 interchangeably.
-The boolean values `off` and `no` are synonymous to `false and can be used
+The boolean values `off` and `no` are synonymous to `false` and can be used
 interchangeably.
 
 #### Integers
@@ -658,6 +658,8 @@ buf = buf .. [4];           // write access
 escape buf[1];              // read access (yields 2)
 ```
 
+`TODO: ring buffers`
+
 #### Events
 
 Events account for the reactive nature of Céu.
@@ -762,9 +764,9 @@ Example:
 code/await Anim (none) => none do       // defines the "Anim" code abstraction
     <...>                               // body of "Anim"
 end
-pool[] Anim ms;                         // declares an unlimited container for "Anim" instances
+pool[] Anim as;                         // declares an unlimited container for "Anim" instances
 loop i in [1->10] do
-    spawn Anim() in ms;                 // creates 10 instances of "Anim" into "ms"
+    spawn Anim() in as;                 // creates 10 instances of "Anim" into "as"
 end
 ```
 
@@ -826,8 +828,8 @@ a job position referring to a person is a pointer.
 
 Céu support aliases to all storage entity classes, except external events and
 pointer types.
-Céu also supports option variable aliases which are aliases that may be set or
-not.
+Céu also supports option variable aliases which are aliases that may be bounded
+or not.
 
 An alias is declared by suffixing the entity class with the modifier
 `&` and is acquired by prefixing an entity identifier with the operator `&`.
@@ -852,9 +854,9 @@ An option variable alias, declared as `var&?`, serves two purposes:
 - Map a [native resource](../statements/#resources-finalization) to Céu.
   The alias is acquired by prefixing the associated
   [native call](../statements/#native-call) with the operator `&`.
-  Since the allocation may fail, the alias may remain unset.
+  Since the allocation may fail, the alias may remain unbounded.
 - Hold the result of a [`spawn`](../statements/#code-invocation) invocation.
-  Since the allocation may fail, the alias may remain unset.
+  Since the allocation may fail, the alias may remain unbounded.
 
 <!--
 - Track the lifetime of a variable.
@@ -866,6 +868,8 @@ An option variable alias, declared as `var&?`, serves two purposes:
 
 Accesses to option variable aliases must always use
 [option checking or unwrapping](../expressions/#option).
+
+`TODO: or implicit assert with & declarations`
 
 Examples:
 
@@ -937,7 +941,7 @@ block:
 
 ```ceu
 Program ::= Block
-Block   ::= {Stmt `;´} {`;´}
+Block   ::= {Stmt `;´}
 ```
 
 *Note: statements terminated with the `end` keyword do not require a
@@ -976,12 +980,14 @@ Escape ::= escape [`/´ID_int] [Exp]
 ```
 
 A `do-end` and `escape` accept an optional identifier following the symbol `/`.
-A `escape` only matches a `do-end` with the same identifier.
+An `escape` only matches a `do-end` with the same identifier.
 The neutral identifier `_` in a `do-end` is guaranteed not to match any
 `escape` statement.
 
 A `do-end` also supports an optional list of identifiers in parenthesis which
-restricts the visible variables inside the block to those matching the list.
+restricts the visible storage entities inside the block to those matching the
+list.
+An empty list hides all storage entities from the enclosing scope.
 
 A `do-end` can be [assigned](#assignments) to a variable whose type must be
 matched by nested `escape` statements.
@@ -1012,6 +1018,7 @@ do (a)
     a = 1;
     b = 2;  // "b" is not visible
 end
+```
 
 ```ceu
 var int? v =
@@ -1040,7 +1047,8 @@ Pre_Do ::= pre do
 ```
 
 All `pre-do-end` statements are concatenated together in the order they appear
-and moved to the beginning of the top-level block, before all other statements.
+and are moved to the beginning of the top-level block, before all other
+statements.
 
 ### Declarations
 
@@ -1052,12 +1060,13 @@ Céu supports variables, vectors, pools, internal events, and external events:
 
 ```ceu
 
-Var  ::= var [`&´|`&?´] [ `[´ [Exp] `]´ ] [`/dynamic´|`/nohold´] Type ID_int [`=´ Sources]
+Var  ::= var [`&´|`&?´] [ `[´ [Exp [`*`]] `]´ ] [`/dynamic´|`/nohold´] Type ID_int [`=´ Sources]
 Pool ::= pool [`&´] `[´ [Exp] `]´ Type ID_int [`=´ Sources]
 Int  ::= event [`&´] (Type | `(´ LIST(Type) `)´) ID_int [`=´ Sources]
 
 Ext  ::= input  (Type | `(´ LIST(Type) `)´) ID_ext
-      |  output (Type | `(´ LIST([`&´] Type) `)´) ID_ext
+      |  output (Type | `(´ LIST([`&´] Type [ID_int]) `)´) ID_ext
+            [ do Block end ]
 
 Sources ::= /* (see "Assignments") */
 ```
@@ -1090,6 +1099,7 @@ A [vector](../storage_entities/#vectors) declaration specifies a
 an associated [type](../types/#types) and can be optionally
 [initialized](#assignments).
 Declarations can also be [aliases](../storage_entities/#aliases).
+`TODO: ring buffers`
 
 <!--
 `TODO: unmacthing [] in binding`
@@ -1127,7 +1137,7 @@ pool&[]  Play a = &plays;   // "a" is an alias to "plays"
 See also [Code Invocation](#TODO).
 -->
 
-`TODO: data`
+`TODO: data pools`
 
 #### Dimension
 
@@ -1142,6 +1152,7 @@ between brackets to specify a dimension as follows:
 - *omitted*: Maximum number of elements is unbounded and space is dynamically
              allocated.
              The space for dynamic dimensions grow and shrink automatically.
+- `TODO: ring buffers`
 
 #### Events
 
@@ -1158,12 +1169,12 @@ See also [Introduction](#TODO) for a general overview of events.
 Examples:
 
 ```ceu
-input  none A,B;        // "A" and "B" are input events carrying no values
+input  none A;          // "A" is an input event carrying no values
 output int  MY_EVT;     // "MY_EVT" is an output event carrying integer values
 input (int,byte&&) BUF; // "BUF" is an input event carrying an "(int,byte&&)" pair
 ```
 
-`TODO: output &`
+`TODO: output &/impl`
 
 ##### Internal Events
 
@@ -1192,7 +1203,6 @@ Sources ::= ( Do
             | Await
             | Watching
             | Thread
-            | Lua_State
             | Lua_Stmts
             | Code_Await
             | Code_Spawn
@@ -1209,7 +1219,6 @@ Céu supports the following constructs as assignment sources:
 - [await](#await)
 - [watching statement](#watching)
 - [thread](#thread)
-- [lua state](#lua-state)
 - [lua statement](#lua-statement)
 - [code await](#code-invocation)
 - [code spawn](#code-invocation)
@@ -1234,7 +1243,7 @@ copies the result(s) to the location(s) at the left side.
 An *alias assignment*, aka *binding*, makes the location at the left side to be
 an [alias](../storage_entities/#aliases) to the expression at the right side.
 
-The right side of a binding is always prefixed by the operator `&`.
+The right side of a binding must always be prefixed with the operator `&`.
 
 ### Event Handling
 
@@ -1600,7 +1609,7 @@ for each iteration of the loop body:
         If the step is omitted, it assumes the value `1`.
         If the direction is `->`, the step is added, otherwise it is subtracted.
 
-    If the interval is not specified, it assumes the default `[0 -> _]`.
+    If the interval is not specified, it assumes the default `[0 -> _[`.
 
 A numeric iterator executes as follows:
 
@@ -1693,6 +1702,8 @@ end
 However, the body of an `every` cannot contain
 [synchronous control statements](#synchronous-control-statements), ensuring
 that no occurrences of the specified event are ever missed.
+
+`TODO: reject break inside every`
 
 Examples:
 
@@ -1958,6 +1969,17 @@ end
 *Note: The timeouts for timers remain frozen while paused.*
 -->
 
+### Exceptions
+
+`TODO`
+
+```ceu
+Throw ::= throw Exp
+Catch ::= catch LIST(Loc) do
+              Block
+          end
+```
+
 ### Asynchronous Execution
 
 Asynchronous execution allow programs to departure from the rigorous
@@ -2158,7 +2180,7 @@ Céu provides [native declarations](#native-declaration) to import C symbols,
 and [finalization](#resources-finalization) to deal with C pointers safely:
 
 ```ceu
-Nat_Symbol ::= native [`/´(pure|const|nohold|plain)] `(´ List_Nat `)´
+Nat_Symbol ::= native [`/´(pure|const|nohold|plain)] `(´ LIST(ID_nat) `)´
 Nat_Block  ::= native `/´(pre|pos) do
                    <code definitions in C>
                end
@@ -2168,11 +2190,9 @@ Nat_Stmts  ::= `{´ {<code in C> | `@´ (`(´Exp`)´|Exp)} `}´     /* `@@´ esc
 
 Nat_Call   ::= [call] (Loc | `(´ Exp `)´)  `(´ [ LIST(Exp)] `)´
 
-List_Nat ::= LIST(ID_nat)
-
 Finalization ::= do [Stmt] Finalize
-              |  var `&?´ Type ID_int `=´ `&´ (Call_Nat | Call_Code) Finalize
-Finalize ::= finalize `(´ LIST(Loc) `)´ with
+              |  var [`&´|`&?´] Type ID_int `=´ `&´ (Call_Nat | Call_Code) Finalize
+Finalize ::= finalize [ `(´ LIST(Loc) `)´ ] with
                  Block
              [ pause  with Block ]
              [ resume with Block ]
@@ -2444,7 +2464,9 @@ var _tp v = _f() as /plain;
 ### Lua Integration
 
 Céu provides [Lua states](#lua-state) to delimit the effects of inlined
-[Lua statements](#lua-statement):
+[Lua statements](#lua-statement).
+Lua statements transfer execution to the Lua runtime, losing the guarantees of
+the [synchronous model](../#synchronous-execution-model):
 
 ```ceu
 Lua_State ::= lua `[´ [Exp] `]´ do
@@ -2455,13 +2477,7 @@ Lua_Stmts ::= `[´ {`=´} `[´
               `]´ {`=´} `]´
 ```
 
-Lua statements transfer execution to Lua, losing the guarantees of the
-[synchronous model](../#synchronous-execution-model).
-For this reason, programs should only resort to C for asynchronous
-functionality (e.g., non-blocking I/O) or simple `struct` accessors, but
-never for control purposes.
-
-All programs have an implicit enclosing *global Lua state* which all orphan
+Programs have an implicit enclosing *global Lua state* which all orphan
 statements apply.
 
 #### Lua State
@@ -2514,10 +2530,14 @@ error.
 The list that follows specifies the *Céu destination* and expected
 *Lua source*:
 
-- a `var` `bool`                            expects a `boolean`
-- a [numeric](../types/#primitives) `var`   expects a `number`
-- a pointer `var`                           expects a `lightuserdata`
-- a `vector` `byte`                         expects a `string`
+- a [boolean](../types/#primitives) [variable](../storage_entities/#variables)
+    expects a `boolean` value
+- a [numeric](../types/#primitives) [variable](../storage_entities/#variables)
+    expects a `number` value
+- a [pointer](../storage_entities/#pointers) [variable](../storage_entities/#variables)
+    expects a `lightuserdata` value
+- a [byte](../types/#primitives) [vector](../storage_entities/#vectors)
+    expects a `string` value
 
 `TODO: lua state captures errors`
 
@@ -2547,8 +2567,7 @@ A `data` declaration creates a new data type:
 
 ```ceu
 Data ::= data ID_abs [as (nothing|Exp)] [ with
-             (Var|Vec|Pool|Int) `;´ {`;´}
-             { (Var|Vec|Pool|Int) `;´ {`;´} }
+             (Var|Vec|Pool|Int) `;´ { (Var|Vec|Pool|Int) `;´ }
          end
 
 Data_Cons ::= (val|new) Abs_Cons
@@ -2598,14 +2617,14 @@ escape (dir as int);        // returns 1 or -1
 
 ##### Data Constructor
 
-A new static value constructor is created in the contexts as follows:
+A new data value is created in the contexts that follow:
 
 - Prefixed by the keyword `val` in an [assignment](#assignments) to a variable.
 - As an argument to a [`code` invocation](#code-invocation).
 - Nested as an argument in a `data` creation (i.e., a `data` that contains
   another `data`).
 
-In all cases, the arguments are copied to a destination with static storage.
+In all cases, the arguments are copied to the destination.
 The destination must be a plain declaration (i.e., not an alias or pointer).
 
 The constructor uses the `data` identifier followed by a list of arguments
@@ -2640,7 +2659,10 @@ be invoked from arbitrary points in programs:
 ```ceu
 // prototype declaration
 Code_Tight ::= code/tight Mods ID_abs `(´ Params `)´ `->´ Type
-Code_Await ::= code/await Mods ID_abs `(´ Params `)´ [`->´ `(´ Params `)´] `->´ (Type | NEVER)
+Code_Await ::= code/await Mods ID_abs `(´ Params `)´
+                                        [ `->´ `(´ Params `)´ ]
+                                            `->´ (Type | NEVER)
+                    [ throws LIST(ID_abs) ]
 Params ::= none | LIST(Var|Vec|Pool|Int)
 
 // full declaration
@@ -2652,6 +2674,7 @@ Code_Impl ::= (Code_Tight | Code_Await) do
 Code_Call  ::= call  Mods Abs_Cons
 Code_Await ::= await Mods Abs_Cons
 Code_Spawn ::= spawn Mods Abs_Cons [in Loc]
+Code_Kill  ::= kill Loc [ `(` Exp `)` ]
 
 Mods ::= [`/´dynamic | `/´static] [`/´recursive]
 ```
@@ -2734,6 +2757,8 @@ These entities are visible to the invoking context, which may
 Likewise, nested code declarations in the outermost scope, known as methods,
 are also visible to the invoking context.
 
+`TODO: throws`
+
 <!--
 - The invoker passes a list of unbound aliases to the code.
 - The code [binds](#alias-assignment) the aliases to the local resources before
@@ -2797,6 +2822,8 @@ are aborted.
 If the `spawn` omits the pool, the invocation always succeed and has the same
 scope as the invoking point: when the enclosing block terminates, the invoked
 code is also aborted.
+
+`TODO: kill`
 
 ##### Code References
 
@@ -2906,12 +2933,18 @@ Exp ::= NUM | STR | null | true | false | on | off | yes | no
      |  `(´ Exp `)´
      |  Exp <binop> Exp
      |  <unop> Exp
+     |  Exp (`:´|`.´) (ID_int|ID_nat)
+     |  Exp (`?´|`!´)
      |  Exp `[´ Exp `]´
+     |  Exp `(´ [ LIST(Exp) ] `)´
      |  Exp is Type
      |  Exp as Type
      |  Exp as `/´(nohold|plain|pure)
      |  sizeof `(´ (Type|Exp) `)´
      |  Nat_Call | Code_Call
+     |  ID_int
+     |  ID_nat
+     |  outer
 
 /* Locations */
 
@@ -3244,41 +3277,49 @@ Usage: ceu [<options>] <file>...
 
 Options:
 
-    --help                      display this help, then exit
-    --version                   display version information, then exit
+    --help                          display this help, then exit
+    --version                       display version information, then exit
 
-    --pre                       Preprocessor Phase: preprocess Céu into Céu
-    --pre-exe=FILE                  preprocessor executable
-    --pre-args=ARGS                 preprocessor arguments
-    --pre-input=FILE                input file to compile (Céu source)
-    --pre-output=FILE               output file to generate (Céu source)
+    --pre                           Preprocessor phase: preprocess Céu into Céu
+    --pre-exe=FILE                      preprocessor executable
+    --pre-args=ARGS                     preprocessor arguments
+    --pre-input=FILE                    input file to compile (Céu source)
+    --pre-output=FILE                   output file to generate (Céu source)
 
-    --ceu                       Céu Phase: compiles Céu into C
-    --ceu-input=FILE                input file to compile (Céu source)
-    --ceu-output=FILE               output source file to generate (C source)
-    --ceu-line-directives=BOOL      insert `#line´ directives in the C output
+    --ceu                           Céu phase: compiles Céu into C
+    --ceu-input=FILE                    input file to compile (Céu source)
+    --ceu-output=FILE                   output source file to generate (C source)
+    --ceu-line-directives=BOOL          insert `#line` directives in the C output (default `true`)
 
-    --ceu-features-lua=BOOL         enable `lua´ support
-    --ceu-features-thread=BOOL      enable `async/thread´ support
-    --ceu-features-isr=BOOL         enable `async/isr´ support
+    --ceu-features-trace=BOOL           enable trace support (default `false`)
+    --ceu-features-exception=BOOL       enable exceptions support (default `false`)
+    --ceu-features-dynamic=BOOL         enable dynamic allocation support (default `false`)
+    --ceu-features-pool=BOOL            enable pool support (default `false`)
+    --ceu-features-lua=BOOL             enable `lua` support (default `false`)
+    --ceu-features-thread=BOOL          enable `async/thread` support (default `false`)
+    --ceu-features-isr=BOOL             enable `async/isr` support (default `false`)
+    --ceu-features-pause=BOOL           enable `pause/if` support (default `false`)
 
-    --ceu-err-unused=OPT            effect for unused identifier: error|warning|pass
-    --ceu-err-unused-native=OPT                unused native identifier
-    --ceu-err-unused-code=OPT                  unused code identifier
-    --ceu-err-uninitialized=OPT     effect for uninitialized variable: error|warning|pass
+    --ceu-err-unused=OPT                effect for unused identifier: error|warning|pass
+    --ceu-err-unused-native=OPT                    unused native identifier
+    --ceu-err-unused-code=OPT                      unused code identifier
+    --ceu-err-uninitialized=OPT         effect for uninitialized variable: error|warning|pass
+    --ceu-err-uncaught-exception=OPT    effect for uncaught exception: error|warning|pass
+    --ceu-err-uncaught-exception-main=OPT   ... at the main block (outside `code` abstractions)
+    --ceu-err-uncaught-exception-lua=OPT    ... from Lua code
 
-    --env                       Environment Phase: packs all C files together
-    --env-types=FILE                header file with type declarations (C source)
-    --env-threads=FILE              header file with thread declarations (C source)
-    --env-ceu=FILE                  output file from Céu phase (C source)
-    --env-main=FILE                 source file with main function (C source)
-    --env-output=FILE               output file to generate (C source)
+    --env                           Environment phase: packs all C files together
+    --env-types=FILE                    header file with type declarations (C source)
+    --env-threads=FILE                  header file with thread declarations (C source)
+    --env-ceu=FILE                      output file from Céu phase (C source)
+    --env-main=FILE                     source file with main function (C source)
+    --env-output=FILE                   output file to generate (C source)
 
-    --cc                        C Compiler Phase: compiles C into binary
-    --cc-exe=FILE                   C compiler executable
-    --cc-args=ARGS                  compiler arguments
-    --cc-input=FILE                 input file to compile (C source)
-    --cc-output=FILE                output file to generate (binary)
+    --cc                            C phase: compiles C into binary
+    --cc-exe=FILE                       C compiler executable
+    --cc-args=ARGS                      compiler arguments
+    --cc-input=FILE                     input file to compile (C source)
+    --cc-output=FILE                    output file to generate (binary)
 ```
 
 All phases are optional.
@@ -3477,9 +3518,9 @@ execution of Céu programs:
     Finalizes the program.
     Should be called once.
 
-- `void ceu_input (tceu_nevt evt_id, void* evt_params)`
+- `void ceu_input (tceu_nevt id, void* params)`
 
-    Notifies the program about an input `evt_id` with a payload `evt_params`.
+    Notifies the program about an input `id` with a payload `params`.
     Should be called whenever the event loop senses a change.
     The call to `ceu_input(CEU_INPUT__ASYNC, NULL)` makes
     [asynchronous blocks](../statements/#asynchronous-block) to execute a step.
@@ -3537,30 +3578,30 @@ typedef struct tceu_callback {
 } tceu_callback;
 ```
 
-The handler should expect a request identifier with two arguments, as well as
-the filename and line number in the source code in Céu making the request:
+A handler expects a request identifier with two arguments, as well as runtime
+trace information (e.g., file name and line number of the request):
 
 ```
-typedef tceu_callback_ret (*tceu_callback_f) (int, tceu_callback_arg, tceu_callback_arg, const char*, u32);
+typedef int (*tceu_callback_f) (int, tceu_callback_val, tceu_callback_val, tceu_trace);
 ```
 
 An argument has one of the following types:
 
 ```
-typedef union tceu_callback_arg {
+typedef union tceu_callback_val {
     void* ptr;
     s32   num;
     usize size;
-} tceu_callback_arg;
+} tceu_callback_val;
 ```
 
-The handler returns if it handled the request and an optional value:
+A handler returns whether it handled the request or not (return type `int`).
+
+Depending on the request, the handler must also assign a return value to the
+global `ceu_callback_ret`:
 
 ```
-typedef struct tceu_callback_ret {
-    bool is_handled;
-    tceu_callback_arg value;
-} tceu_callback_ret;
+static tceu_callback_val ceu_callback_ret;
 ```
 
 <!--
@@ -3591,18 +3632,18 @@ callback to handle occurrences of `O`:
 
 int ceu_is_running;     // detects program termination
 
-tceu_callback_ret ceu_callback_main (int cmd, tceu_callback_arg p1, tceu_callback_arg p2, const char* filename, u32 line)
+int ceu_callback_main (int cmd, tceu_callback_val p1, tceu_callback_val p2, tceu_trace trace)
 {
-    tceu_callback_ret ret = { .is_handled=0 };
+    int is_handled = 0;
     switch (cmd) {
         case CEU_CALLBACK_TERMINATING:
             ceu_is_running = 0;
-            ret.is_handled = 1;
+            is_handled = 1;
             break;
         case CEU_CALLBACK_OUTPUT:
             if (p1.num == CEU_OUTPUT_O) {
                 printf("output O has been emitted with %d\n", p2.num);
-                ret.is_handled = 1;
+                is_handled = 1;
             }
             break;
     }
@@ -3645,9 +3686,14 @@ Follows the complete syntax of Céu in a BNF-like syntax:
 - `(...)` : groups `...`
 - `<...>` : special informal rule
 
+<!--
+TODO:
+    deterministic
+-->
+
 ```ceu
 Program ::= Block
-Block   ::= {Stmt `;´} {`;´}
+Block   ::= {Stmt `;´}
 
 Stmt ::= nothing
 
@@ -3657,7 +3703,7 @@ Stmt ::= nothing
       | do [`/´(ID_int|`_´)] [`(´ [LIST(ID_int)] `)´]
             Block
         end
-      |  escape [`/´ID_int] [Exp]
+      | escape [`/´ID_int] [Exp]
 
       /* pre (top level) execution */
       | pre do
@@ -3667,12 +3713,13 @@ Stmt ::= nothing
   /* Storage Entities / Declarations */
 
       // Dcls ::=
-      | var [`&´|`&?´] `[´ [Exp] `]´ [`/dynamic´|`/nohold´] Type ID_int [`=´ Sources]
+      | var [`&´|`&?´] `[´ [Exp [`*´]] `]´ [`/dynamic´|`/nohold´] Type ID_int [`=´ Sources]
       | pool [`&´] `[´ [Exp] `]´ Type ID_int [`=´ Sources]
       | event [`&´] (Type | `(´ LIST(Type) `)´) ID_int [`=´ Sources]
 
       | input (Type | `(´ LIST(Type) `)´) ID_ext
-      | output (Type | `(´ LIST([`&´] Type) `)´) ID_ext
+      | output (Type | `(´ LIST([`&´] Type [ID_int]) `)´) ID_ext
+            [ do Block end ]
 
   /* Event Handling */
 
@@ -3754,6 +3801,13 @@ Stmt ::= nothing
             Block
         end
 
+  /* Exceptions */
+
+      | throw Exp
+      | catch LIST(Loc) do
+            Block
+        end
+
   /* Pause */
 
       | pause/if (Loc|ID_ext) do
@@ -3782,9 +3836,7 @@ Stmt ::= nothing
 
   /* C integration */
 
-      | native [`/´(pure|const|nohold|plain)] `(´ List_Nat `)´
-        // where
-            List_Nat ::= LIST(ID_nat)
+      | native [`/´(pure|const|nohold|plain)] `(´ LIST(ID_nat) `)´
       | native `/´(pre|pos) do
             <code definitions in C>
         end
@@ -3796,9 +3848,9 @@ Stmt ::= nothing
 
       /* finalization */
       | do [Stmt] Finalize
-      | var `&?´ Type ID_int `=´ `&´ (Nat_Call | Code_Call) Finalize
+      | var [`&´|`&?´] Type ID_int `=´ `&´ (Nat_Call | Code_Call) Finalize
         // where
-            Finalize ::= finalize `(´ LIST(Loc) `)´ with
+            Finalize ::= finalize [ `(´ LIST(Loc) `)´ ] with
                              Block
                          [ pause  with Block ]
                          [ resume with Block ]
@@ -3820,8 +3872,7 @@ Stmt ::= nothing
       /* Data */
 
       | data ID_abs [as (nothing|Exp)] [ with
-            Dcls `;´ {`;´}
-            { Dcls `;´ {`;´} }
+            Dcls `;´ { Dcls `;´ }
         end ]
 
       /* Code */
@@ -3830,7 +3881,10 @@ Stmt ::= nothing
       | code/tight Mods ID_abs `(´ Params `)´ `->´ Type
 
       // Code_Await ::=
-      | code/await Mods ID_abs `(´ Params `)´ [ `->´ `(´ Params `)´ ] `->´ (Type | NEVER)
+      | code/await Mods ID_abs `(´ Params `)´
+                                    [ `->´ `(´ Params `)´ ]
+                                        `->´ (Type | NEVER)
+                                [ throws LIST(ID_abs) ]
         // where
             Params ::= none | LIST(Dcls)
 
@@ -3849,6 +3903,7 @@ Stmt ::= nothing
 
       // Code_Spawn ::=
       | spawn Mods Abs_Cons [in Loc]
+      | kill Loc [ `(` Exp `)` ]
 
         // where
             Mods ::= [`/´dynamic | `/´static] [`/´recursive]
@@ -3863,7 +3918,6 @@ Stmt ::= nothing
                         | Await
                         | Watching
                         | Thread
-                        | Lua_State
                         | Lua_Stmts
                         | Code_Await
                         | Code_Spawn
@@ -3915,12 +3969,18 @@ Exp ::= NUM | STR | null | true | false | on | off | yes | no
      |  `(´ Exp `)´
      |  Exp <binop> Exp
      |  <unop> Exp
+     |  Exp (`:´|`.´) (ID_int|ID_nat)
+     |  Exp (`?´|`!´)
      |  Exp `[´ Exp `]´
+     |  Exp `(´ [ LIST(Exp) ] `)´
      |  Exp is Type
      |  Exp as Type
      |  Exp as `/´(nohold|plain|pure)
      |  sizeof `(´ (Type|Exp) `)´
      |  Nat_Call | Code_Call
+     |  ID_int
+     |  ID_nat
+     |  outer
 
 /* Locations */
 

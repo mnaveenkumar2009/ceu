@@ -509,8 +509,10 @@ GG = { [1] = x * V'_Stmts' * V'Y' * (P(-1) + E('end of file'))
 
     , Nat_End = K'native' * KK'/' * K'end'
     , Nat_Block = K'native' * (CK'/pre'+CK'/pos') * (#K'do')*'do' *
-                ( C(V'_C') + C((P(1)-(S'\t\n\r '*'end'*P';'^0*'\n'))^0) ) *
-             x* K'end'
+                    ( S'\t\n\r '^0*C(V'_C')*x +
+                      C(((P(1)-(V'__Nat_Block_S'^1*'end'*(P';'+V'__Nat_Block_S')^1)))^0) ) *
+                  V'__Nat_Block_S'^0*K'end'
+    , __Nat_Block_S = S'\t\n\r '
 
     , Nat_Stmt = KK('{',nil,true) * V'__nat1' * KK'}'
     , _Nat_Exp = KK('{',nil,true) * V'__nat1' * KK'}'
@@ -557,20 +559,20 @@ GG = { [1] = x * V'_Stmts' * V'Y' * (P(-1) + E('end of file'))
     , __Dcls    = V'_Var_set' + V'_Pool_set' + V'_Evt_set'
 -- AWAIT, EMIT
 
-    , __Awaits_one  = K'await' * (V'Await_Wclock' + V'_Abs_Await')
+    , __Awaits_one  = K'await' * (V'Await_Wclock' + V'Abs_Await')
     , __Awaits_many = K'await' * V'Await_Until'
 
     , Await_Until  = (V'Await_Ext' + V'Await_Int') * OPT(K'until'*V'__Exp')
 
-    , Await_Ext    = V'ID_ext'   * V'Y' -I(V'_Abs_Await')            -- TODO: rem
-    , Await_Int    = V'Loc' * V'Y' -I(V'Await_Wclock'+V'_Abs_Await') -- TODO: rem
+    , Await_Ext    = V'ID_ext'   * V'Y' -I(V'Abs_Await')            -- TODO: rem
+    , Await_Int    = V'Loc' * V'Y' -I(V'Await_Wclock'+V'Abs_Await') -- TODO: rem
     , Await_Wclock = (V'WCLOCKK' + V'WCLOCKE') * V'Y'
 
     , Await_Forever = K'await' * K'FOREVER' * V'Y'
     , Await_Pause   = K'await' * K'pause'   * V'Y'
     , Await_Resume  = K'await' * K'resume'  * V'Y'
 
-    , _Emit_ps = OPT(V'__Exp' + V'ID_any' + PARENS(OPT(V'_List_Exp_Any')))
+    , _Emit_ps = OPT(PARENS(OPT(V'_List_Exp_Any')))
     , Emit_Wclock   = K'emit' * (V'WCLOCKK'+V'WCLOCKE')
     , Emit_Ext_emit = K'emit'                     * V'ID_ext' * V'_Emit_ps'
     , Emit_Ext_call = (K'call/recursive'+K'call') * V'ID_ext' * V'_Emit_ps'
@@ -582,7 +584,7 @@ GG = { [1] = x * V'_Stmts' * V'Y' * (P(-1) + E('end of file'))
     , Throw = K'throw' * V'__Exp' --(V'Abs_Cons' + V'__Exp')
     , _Catch = K'catch' * LIST(V'Loc') * V'__Do'
 
-    , __watch = (V'Await_Ext' + V'Await_Int' + V'Await_Wclock' + V'_Abs_Await')
+    , __watch = (V'Await_Ext' + V'Await_Int' + V'Await_Wclock' + V'Abs_Await')
     , _Watching = K'watching'
                     * LIST(V'__watch')
                 * V'__Do'
@@ -611,10 +613,10 @@ GG = { [1] = x * V'_Stmts' * V'Y' * (P(-1) + E('end of file'))
     , __abs_mods = Ct ( (Cg(K'/dynamic'*Cc'dynamic','dynamic') +
                          Cg(K'/static' *Cc'static', 'static'))^-1 *
                          Cg(K'/recursive'*Cc'recursive','recursive')^-1 )
-    , Abs_Call   = K'call' * V'__abs_mods' * (V'Abs_Cons' -I(V'__id_data'))
-    , Abs_Val    = CK'val' * V'Abs_Cons'
-    , Abs_New    = CK'new' * V'Abs_Cons'
-    , _Abs_Await = V'__Abs_Cons_Code' * V'Y'
+    , Abs_Call  = K'call' * V'__abs_mods' * (V'Abs_Cons' -I(V'__id_data'))
+    , Abs_Val   = CK'val' * V'Abs_Cons'
+    , Abs_New   = CK'new' * V'Abs_Cons'
+    , Abs_Await = V'__Abs_Cons_Code' * V'Y'
 
     , Abs_Spawn      = K'spawn' * V'__Abs_Cons_Code' * -(KK'in' * V'Loc')
     , Abs_Spawn_Pool = K'spawn' * V'__Abs_Cons_Code' * KK'in' * V'Loc'
@@ -658,7 +660,6 @@ GG = { [1] = x * V'_Stmts' * V'Y' * (P(-1) + E('end of file'))
 
     , _Set_Async_Thread  = #(K'await' * K'async/thread') * V'Async_Thread'
     , _Set_Lua           = #V'__lua_pre'     * V'_Lua'
-    , _Set_Lua_Do        =                     V'_Lua_Do'
     , _Set_Vec           =                     V'Vec_Cons'
 
     , _Set_Emit_Wclock   = #K'emit'          * V'Emit_Wclock'
@@ -850,12 +851,12 @@ GG = { [1] = x * V'_Stmts' * V'Y' * (P(-1) + E('end of file'))
               + V'_Var_set_fin'
 
     --, _C = '/******/' * (P(1)-'/******/')^0 * '/******/'
-    , _C      = m.Cg(V'_CSEP','mark') *
-                    (P(1)-V'_CEND')^0 *
-                V'_CEND'
-    , _CSEP = '/***' * (1-P'***/')^0 * '***/'
-    , _CEND = m.Cmt(C(V'_CSEP') * m.Cb'mark',
-                    function (s,i,a,b) return a == b end)
+    , _C      = m.Cg(V'__CSEP','mark') *
+                    (P(1)-V'__CEND')^0 *
+                V'__CEND'
+    , __CSEP = '/***' * (1-P'***/')^0 * '***/'
+    , __CEND = m.Cmt(C(V'__CSEP') * m.Cb'mark',
+                    function (s,i,a,b) return a==b end)
 
     , __SPACE = ('\n' * (V'__comm'+S'\t\n\r ')^0 *
                   '#' * (P(1)-'\n')^0)

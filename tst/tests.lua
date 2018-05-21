@@ -344,6 +344,17 @@ escape 10;
     _opts = { ceu_features_exception='true' },
 }
 
+-- BUG: #117
+Test { [[
+var byte&& str = "#9" as byte&&;
+{ceu_assert(0,"err");}
+escape 1;
+]],
+    _opts = { ceu_features_trace='true' },
+    run = '2] -> runtime error: err',
+    --todo = '"9" is inside a string, it shouldnt count',
+}
+
 -- var/nohold int x;
 -- var/dynamic int x;
 -------------------------------------------------------------------------------
@@ -395,58 +406,8 @@ escape 1;
 }
 ]==]
 
---]=====]
-Test { [[
-input none A;
-var int ret = 0;
-code/await Ff (none) -> none do
-    await A;
-    outer.ret = 10;
-end
-await Ff();
-escape ret+1;
-]],
-    run = {['~>A']=11},
-}
-Test { [[
-code/await Ff (none) -> none do
-end
-await Ff();
-escape 1;
-]],
-    run = 1,
-}
-Test { [[
-code/await Ff (none) -> NEVER do
-    await FOREVER;
-end
-var& Ff f = spawn Ff();
-escape 1;
-]],
-    run = 1,
-}
-Test { [[
-code/await Ff (none) -> NEVER do
-    await FOREVER;
-end
-var& Ff f = spawn Ff();
-kill f;     // error
-escape 1;
-]],
-    stmts = 'line 5 : invalid `kill` : expected `&?` alias',
-}
-Test { [[
-input none A;
-code/await Ff (none) -> int do
-    await A;
-    escape 10;
-end
-var int v = await Ff();
-escape v+1;
-]],
-    run = {['~>A']=11},
-}
 do return end -- OK
+--]=====]
 
 ----------------------------------------------------------------------------
 -- OK: well tested
@@ -767,17 +728,6 @@ escape (not false) as int;
 }
 
 Test { [[
-native/const _A, _B;
-native/pos do
-    ##define A 0
-    ##define B 1
-end
-escape _A | _B;
-]],
-    run = 1,
-}
-
-Test { [[
 var real esp = 2 * 3.1415;
 escape esp as int;
 ]],
@@ -919,7 +869,7 @@ end
 escape _get_A_id();
 ]],
     wrn = true,
-    run = 14,
+    run = 15,
 }
 
 Test { [[
@@ -976,6 +926,27 @@ _X = _X + {
 escape _X;
 ]],
     run = 12,
+}
+
+Test { [[
+native/pre do
+    void f (void* timer) {
+        send();
+    }
+end
+escape 1;
+]],
+    cc = '9: error: implicit declaration of function ‘send’',
+}
+
+Test { [[
+native/pre do
+    void f (void* timer) {
+        send();
+    }
+end
+]],
+    cc = '9: error: implicit declaration of function ‘send’',
 }
 
 --<<< NATIVE
@@ -1373,6 +1344,14 @@ end
 
 --<< TYPE / BOOL
 
+
+Test { [[
+var u8 u = 10;
+var byte b = u;
+escape b;
+]],
+    run = 10,
+}
 
 -- TYPE / NATIVE / ANNOTATIONS
 
@@ -2345,20 +2324,6 @@ end
 escape 1;
 ]],
     run = 1,
-}
-
-Test { [[
-native _CEU_SEQ_MAX;
-event none e;
-var int i;
-loop i in [0->_CEU_SEQ_MAX+1[ do
-    emit e;
-end
-escape 1;
-]],
-    _opts = { ceu_features_trace='true' },
-    wrn = true,
-    run = 'too many internal reactions',
 }
 
     -- WALL-CLOCK TIME / WCLOCK
@@ -3343,7 +3308,7 @@ spawn do
 end
 escape _CEU_APP.root.__mem.trails_n;
 ]],
-    run = 2,
+    run = 3,
 }
 Test { [[
 native _CEU_APP;
@@ -3353,7 +3318,7 @@ spawn do
 end
 escape _CEU_APP.root.__mem.trails_n;
 ]],
-    run = 2,
+    run = 3,
 }
 Test { [[
 native _CEU_APP;
@@ -3364,7 +3329,7 @@ spawn do
 end
 escape _CEU_APP.root.__mem.trails_n;
 ]],
-    run = 3,
+    run = 5,
 }
 --<<< SPAWN / BLOCK
 
@@ -5448,6 +5413,25 @@ escape ret;
 }
 
 Test { [[
+native/plain _RF24NetworkHeader;
+input _RF24NetworkHeader&& NETWORK;
+var _RF24NetworkHeader&& x;
+every (x) in NETWORK do
+end
+]],
+    wrn = true,
+    cc = 'error: unknown type name ‘RF24NetworkHeader’',
+}
+Test { [[
+native/plain _RF24NetworkHeader;
+input _RF24NetworkHeader&& NETWORK;
+every (_) in NETWORK do
+end
+]],
+    wrn = true,
+    cc = 'error: unknown type name ‘RF24NetworkHeader’',
+}
+Test { [[
 var int ret = 0;
 watching 10s do
     var bool x = true;
@@ -6950,6 +6934,19 @@ escape x;
 -->>> INTERNAL EVENTS
 
 Test { [[
+event none e;
+var int i;
+loop i in [0->256[ do
+    emit e;
+end
+escape 1;
+]],
+    wrn = true,
+    --run = 'too many internal reactions',
+    run = 1,
+}
+
+Test { [[
 native _abc; // TODO: = 0;
 event none a;
 var _abc b;
@@ -7399,8 +7396,8 @@ with
 end
 ]],
     _ana = {acc=true},
-    run = 2,
-    --run = 20,
+    --run = 2,
+    run = 20,
 }
 Test { [[
 input none OS_START;
@@ -7419,8 +7416,8 @@ with
 end
 ]],
     _ana = {acc=true},
-    run = 2,
-    --run = 1,
+    --run = 2,
+    run = 1,
 }
 
 -- the inner "emit e" is aborted and the outer "emit e"
@@ -7456,8 +7453,8 @@ escape ret;
     --_ana = {acc=3},
     _ana = {acc=true},
     --run = 6,
-    run = 9,
-    --run = 20,
+    --run = 9,
+    run = 20,
 }
 
 Test { [[
@@ -7491,8 +7488,8 @@ escape ret;
     --_ana = {acc=3},
     _ana = {acc=true},
     --run = 6,
-    run = 9,
-    --run = 4,
+    --run = 9,
+    run = 4,
 }
 
 -- "emit e" on the stack has to die
@@ -7637,8 +7634,8 @@ with
     escape a+b;
 end
 ]],
-    run = 7,
-    --run = 3,
+    --run = 7,
+    run = 3,
 }
 
 -- different semantics w/ longjmp
@@ -8785,6 +8782,8 @@ escape _V;
 ]],
     run = { ['~>2s']=10 },
 }
+
+-- BUG: scope of emit args is dead
 Test { [[
 input none OS_START;
 event int e;
@@ -15963,6 +15962,22 @@ end;
 }
 
 Test { [[
+input none OS_START;
+await OS_START;
+var int ret = 0;
+var int i;
+loop i in [0 -> 5[ do
+    par/and do
+    with
+        ret = ret + i;
+    end
+end
+escape ret;
+]],
+    run = 10,
+}
+
+Test { [[
 input none A; input none Z;
 var int ret = 0;
 par/or do
@@ -21055,6 +21070,43 @@ escape call Ff(_) + call Ff(&x);
 }
 
 Test { [[
+par do
+with
+    escape 1;
+end
+]],
+    run = 1,
+}
+
+Test { [[
+var int ret = do
+    par do
+    with
+        escape 1;
+    end
+end;
+escape ret;
+]],
+    run = 1,
+}
+
+Test { [[
+code/await Ff (none) -> int do
+    var int ret = do
+        par do
+        with
+            escape 1;
+        end
+    end;
+    escape ret;
+end
+var int ret = await Ff();
+escape ret;
+]],
+    run = 1,
+}
+
+Test { [[
 code/await Ff (var&? int i) -> int do
     if i? then
         escape i!;
@@ -21080,6 +21132,17 @@ escape v1;
 ]],
     wrn = true,
     dcls = 'line 4 : invalid call : invalid binding : argument #1 : expected location',
+}
+
+Test { [[
+code/await Ff (var&? int i) -> int do
+    escape i!;
+end
+var int v1 = await Ff(_);
+escape v1;
+]],
+    --wrn = true,
+    run = 'Aborted (core dumped)',
 }
 
 Test { [[
@@ -24572,6 +24635,18 @@ escape xxx;
 }
 
 Test { [[
+output (none) A do
+    var int i;
+    loop i in [0 -> 7] do
+    end
+end
+emit A();
+escape 10;
+]],
+    run = 10,
+}
+
+Test { [[
 native/pos do
     static tceu_data_Dd DD = { 1 };
 end
@@ -24707,19 +24782,23 @@ end
 }
 
 
---<<< OUTPUT
-
 Test { [[
-native/pos do
-    /******/
-    int end = 1;
-    /******/
+code/tight Inc(var& int ret) -> none do
+    ret = ret + 1;
 end
-native _end;
-escape _end;
+output &int INC;
+output (&int v) INC do
+    call Inc(&v);
+end
+var int ret = 10;
+emit INC(&ret);
+escape ret;
 ]],
-    run = 1
+    wrn = true,
+    run = 11,
 }
+
+--<<< OUTPUT
 
 Test { [[
 native/pre do
@@ -26016,12 +26095,12 @@ escape 1;
 }
 
 Test { [[
-native _f, _p;
+native _fff, _p;
 native/pos do
-    ##define f(p)
+    ##define fff(p)
 end
 par/or do
-    _f(_p);
+    _fff(_p);
 with
     await FOREVER;
 end
@@ -26636,11 +26715,52 @@ escape 1;
 }
 
 Test { [[
+native/pre do
+end
+native/end;
+escape 1;
+]],
+    run = 1,
+}
+
+Test { [[
+native/pre do
+end native/end;
+escape 1;
+]],
+    run = 1,
+}
+
+Test { [[
+native/pos do
+    /******/
+    int end = 1;
+    /******/
+end
+native _end;
+escape _end;
+]],
+    run = 1
+}
+
+Test { [[
+native/const _A, _B;
+native/pos do
+    ##define A 0
+    ##define B 1
+end
+escape _A | _B;
+]],
+    run = 1,
+}
+
+Test { [[
 native/pos do
     byte* a = (byte*)"end";
 end
 escape 1;
 ]],
+    --parser = 'line 2 : after `"` : expected `"`',
     run = 1,
 }
 
@@ -28545,6 +28665,20 @@ escape 1;
     valgrind = false,
     asr = true,
 }
+
+Test { [[
+native/pre do
+    void f (char* str) {}
+end
+native _f;
+_f("#99\n");
+{ceu_assert(0,"err");}
+escape 1;
+]],
+    _opts = { ceu_features_trace='true' },
+    run = '99] -> runtime error: err',
+}
+
 --<<< CPP / DEFINE / PREPROCESSOR
 
 -- ASYNC
@@ -29192,6 +29326,7 @@ pause/if a do
 end
 escape 1;
 ]],
+    _opts = { ceu_features_pause='true' },
     run = 1,
 }
 
@@ -29201,6 +29336,7 @@ pause/if a do
 end
 escape 1;
 ]],
+    _opts = { ceu_features_pause='true' },
     stmts = 'line 2 : invalid `pause/if` : unexpected context for variable "a"',
 }
 
@@ -29210,6 +29346,7 @@ pause/if A do
 end
 escape 0;
 ]],
+    _opts = { ceu_features_pause='true' },
     stmts = 'line 2 : invalid `pause/if` : expected event of type `bool`',
 }
 
@@ -29219,6 +29356,7 @@ pause/if A do
 end
 escape 1;
 ]],
+    _opts = { ceu_features_pause='true' },
     run = 1,
 }
 
@@ -29227,6 +29365,7 @@ event none a;
 var int v = await a;
 escape 0;
 ]],
+    _opts = { ceu_features_pause='true' },
     --env = 'line 2 : event type must be numeric',
     --env = 'line 2 : invalid attribution',
     --env = 'line 2 : arity mismatch',
@@ -29240,6 +29379,7 @@ pause/if a do
 end
 escape 0;
 ]],
+    _opts = { ceu_features_pause='true' },
     stmts = 'line 2 : invalid `pause/if` : expected event of type `bool`',
     --env = 'line 2 : event type must be numeric',
     --env = 'line 2 : arity mismatch',
@@ -29262,7 +29402,16 @@ with
     end
 end
 ]],
+    _opts = { ceu_features_pause='true' },
     stmts = 'line 6 : invalid `emit` : types mismatch : "(bool)" <= "(int)"',
+}
+
+Test { [[
+event bool a;
+    pause/if a do
+    end
+]],
+    props_ = 'line 2 : `pause/if` support is disabled',
 }
 
 Test { [[
@@ -29280,6 +29429,7 @@ with
     end
 end
 ]],
+    _opts = { ceu_features_pause='true' },
     _ana = {
         unreachs = 1,
     },
@@ -29303,6 +29453,7 @@ pause/if A do
     escape v;
 end
 ]],
+    _opts = { ceu_features_pause='true' },
     _ana = {
         unreachs = 1,
     },
@@ -29338,6 +29489,7 @@ with
 end
 escape ret;
 ]],
+    _opts = { ceu_features_pause='true' },
     stmts = 'line 7 : invalid `emit` : types mismatch : "(bool)" <= "(int)"',
 }
 
@@ -29352,6 +29504,7 @@ var int ret = 0;
     end
 escape ret;
 ]],
+    _opts = { ceu_features_pause='true' },
     run = {
         ['1~>B;1~>B'] = 1,
         ['false~>A ; 1~>B'] = 1,
@@ -29385,6 +29538,7 @@ with
 end
 escape ret;
 ]],
+    _opts = { ceu_features_pause='true' },
     run = {
         ['1~>Z'] = 1,
         ['1~>A ; 10~>Z ; 1~>B ; 10~>Z ; 0~>B ; 10~>Z ; 0~>A ; 5~>Z'] = 5,
@@ -29411,6 +29565,7 @@ with
 end
 escape ret;
 ]],
+    _opts = { ceu_features_pause='true' },
     run = {
         ['~>Z ; 1~>B'] = 1,
         ['0~>A ; 1~>B ; ~>Z ; 2~>B'] = 2,
@@ -29437,6 +29592,7 @@ with
 end
 escape ret;
 ]],
+    _opts = { ceu_features_pause='true' },
     _ana = {
         acc = 1,
     },
@@ -29465,6 +29621,7 @@ with
 end
 escape ret;
 ]],
+    _opts = { ceu_features_pause='true' },
     _ana = {
         acc = 1,     -- TODO: 0
     },
@@ -29491,6 +29648,7 @@ with
 end
 escape ret;
 ]],
+    _opts = { ceu_features_pause='true' },
     run = {
         ['1~>A ; 10~>B ; 1~>C'] = 50,
     },
@@ -29525,6 +29683,7 @@ with
 end
 escape ret;
 ]],
+    _opts = { ceu_features_pause='true' },
     run = {
         ['~>1us;0~>A;~>1us;0~>A;~>19us'] = 12,
         --['~>1us;1~>A;~>1s;0~>A;~>19us'] = 11,
@@ -29543,6 +29702,7 @@ var int i;
 end
 escape 1;
 ]],
+    _opts = { ceu_features_pause='true' },
     run = 1,
 }
 
@@ -29563,6 +29723,7 @@ with
     escape 1;
 end
 ]],
+    _opts = { ceu_features_pause='true' },
     _ana = {acc=true},
     run = {['~>2s']=1},
 }
@@ -29585,6 +29746,7 @@ with
     escape 1;
 end
 ]],
+    _opts = { ceu_features_pause='true' },
     _ana = {acc=true},
     run = {['~>2s']=-1},
 }
@@ -29632,6 +29794,7 @@ with
 end
 escape ret;
 ]],
+    _opts = { ceu_features_pause='true' },
     wrn = true,
     run = 46,
 }
@@ -29681,6 +29844,7 @@ with
 end
 escape ret;
 ]],
+    _opts = { ceu_features_pause='true' },
     -- todo: this examples uses trails[4], trails[6], but not trails[5]
     wrn = true,
     run = 46,
@@ -30896,7 +31060,7 @@ var[n] byte us = [0,1,2,3,4,5,6,7,8,9];
 us[n-1] = 1;
 escape _CEU_APP.root.__mem.trails_n;
 ]],
-    run = 2,
+    run = 3,
 }
 Test { [[
 native _CEU_APP;
@@ -33140,6 +33304,22 @@ end
 ]],
     wrn = true,
     cc = '4:57: error: implicit declaration of function ‘f’',
+    --run = 'Aborted (core dumped)',
+}
+
+Test { [[
+native/nohold _S, _F, _f;
+code/await Surface_from_desc (var _S desc) -> NEVER
+do
+    var&? _F f = &_f(desc) finalize (f) with end;
+    await FOREVER;
+end
+var _S x = _;
+await Surface_from_desc(x);
+escape 0;
+]],
+    wrn = true,
+    cc = 'error: implicit declaration of function ‘f’',
     --run = 1,
 }
 
@@ -34465,6 +34645,16 @@ escape 1;
 }
 
 Test { [[
+code/tight Abc(none) -> none do
+    escape;
+end
+call Abc();
+escape 1;
+]],
+    wrn = true,
+    run = 1,
+}
+Test { [[
 code/tight Code ()->none
 do
 end
@@ -34820,6 +35010,38 @@ end
 Test { [[
 code/await Tx (none) -> int
 do
+    code/await Fx (var int a)->int do
+        escape a;
+    end
+    var int y = await Fx(10);
+    escape y;
+end
+var int x = await Tx();
+escape x;
+]],
+    run = {['~>1s']=10},
+}
+
+Test { [[
+code/await Tx (none) -> int
+do
+    code/await Fx (var int a)->int;
+    code/await Fx (var int a)->int do
+        escape a;
+    end
+    var int y = await Fx(10);
+    escape y;
+end
+var int x = await Tx();
+escape x;
+]],
+    _opts = { ceu_features_trace='true' },
+    run = {['~>1s']=10},
+}
+
+Test { [[
+code/await Tx (none) -> int
+do
     code/tight Fx (var int a)->int;
     code/tight Fx (var int a)->int do
         escape a;
@@ -35156,6 +35378,39 @@ escape call Ff(&1);
     --todo = 'support aliases to constants',
 }
 
+Test { [[
+code/tight Ff (none) -> int do
+    loop do
+        if true then
+            break;
+        end
+    end
+    escape 10;
+end
+
+var int x = call Ff();
+escape x;
+]],
+    wrn = true,
+    run = 10,
+}
+
+Test { [[
+code/tight Test (var int a) -> int do
+    var int ret = 0;
+    loop do
+        if a < 1 then break; end
+        a = a - 1;
+        ret = ret + 1;
+    end
+    escape ret;
+end
+var int ret = call Test(3);
+escape ret;
+]],
+    wrn = true,
+    run = 3,
+}
 -->>> RECURSIVE
 
 Test { [[
@@ -35802,7 +36057,8 @@ await Rect();
 escape 0;
 ]],
     --dcls = 'line 4 : invalid declaration : option alias : expected native or `code/await` type',
-    stmts = 'line 4 : invalid `spawn` : expected `code/await` declaration (/tmp/tmp.ceu:1)',
+    --stmts = 'line 4 : invalid `spawn` : expected `code/await` declaration (/tmp/tmp.ceu:1)',
+    stmts = 'line 4 : invalid `await` : expected `code/await` declaration (/tmp/tmp.ceu:1)',
 }
 
 -->> CODE / ALIAS / FINALIZE
@@ -36073,7 +36329,6 @@ escape 1;
     run = 1,
 }
 
-
 Test { [[
 native _SDL_MouseButtonEvent;
 input _SDL_MouseButtonEvent&& SDL_MOUSEBUTTONUP;
@@ -36095,7 +36350,7 @@ await FOREVER;
 ]],
     --run = 1,
     wrn = true,
-    cc = '1: error: unknown type name ‘SDL_MouseButtonEvent’',
+    cc = 'error: unknown type name ‘SDL_MouseButtonEvent’',
     _ana = {
         isForever = true,
     },
@@ -36145,6 +36400,7 @@ end
 
 escape _V;
 ]],
+    _opts = { ceu_features_pause='true' },
     _ana = {acc=true},
     run = {['~>5s']=1},
 }
@@ -36319,23 +36575,48 @@ escape 0;
 }
 
 Test { [[
+code/await Tx (none)->none;
 code/await Tx (none)->none do
     await Tx();
 end
-escape 0;
+escape 1;
 ]],
-    wrn = true,
-    stmts = 'line 2 : invalid `spawn` : unexpected recursive invocation',
-    --dcls = 'line 2 : abstraction "Tx" is not declared',
+    stmts = 'line 3 : invalid `await` : unexpected recursive invocation',
+    --run = 1,
 }
 Test { [[
 code/await Tx (none)->none do
-    spawn Tx();
+    await Tx();
 end
+await Tx();
 escape 0;
 ]],
     wrn = true,
-    stmts = 'line 2 : invalid `spawn` : unexpected recursive invocation',
+    stmts = 'line 2 : invalid `await` : unexpected recursive invocation',
+    --stmts = 'line 2 : invalid `spawn` : unexpected recursive invocation',
+    --dcls = 'line 2 : abstraction "Tx" is not declared',
+}
+Test { [[
+code/await Tx (none)->none;
+code/await Tx (none)->none do
+end
+await Tx();
+await Tx();
+escape 1;
+]],
+    run = 1,
+}
+
+Test { [[
+code/await Tx (none)->none;
+code/await Tx (none)->none do
+    spawn Tx();
+end
+spawn Tx();
+escape 0;
+]],
+    wrn = true,
+    stmts = 'line 3 : invalid `spawn` : unexpected recursive invocation',
     --dcls = 'line 2 : abstraction "Tx" is not declared',
 }
 
@@ -36557,6 +36838,100 @@ escape 1;
     run = 1,
 }
 
+Test { [[
+code/await Ff (none) -> none;
+
+code/await Ff (none) -> none do
+    {ceu_assert(_ceu_mem->trails_n == 5, "erro");}
+    par/or do
+    with
+    end
+end
+
+await Ff();
+escape 1;
+]],
+    run = 1,
+}
+
+Test { [[
+code/await Xxx (var u32 freq, var u8 byte_order, var u8 mode) -> NEVER do
+    par/or do with end
+    await FOREVER;
+end
+
+spawn do
+    await async do
+        emit 1min;
+    end
+end
+
+var int ret = 0;
+
+var byte i;
+loop i in [0->10[ do
+    watching Xxx(1400000, 10, 10) do
+        await 1s;
+        ret = ret + 1;
+    end
+    await 1s;
+end
+
+escape ret;
+]],
+    wrn = true,
+    run = 10,
+}
+
+Test { [[
+var int? x = _;
+escape 10;
+]],
+    wrn = true,
+    run = 10,
+}
+
+Test { [[
+code/await Xxx (var int? csn) -> none do
+end
+
+await Xxx(_);
+
+escape 10;
+]],
+    wrn = true,
+    run = 10,
+}
+
+Test { [[
+code/await Xxx (var u32 freq, var u8 byte_order, var u8 mode, var int? cs, var int? csn) -> NEVER do
+    par/or do with end
+    await FOREVER;
+end
+
+spawn do
+    await async do
+        emit 1min;
+    end
+end
+
+var int ret = 0;
+
+var byte i;
+loop i in [0->10[ do
+    watching Xxx(1400000, 10, 10, _, _) do
+        await 1s;
+        ret = ret + 1;
+    end
+    await 1s;
+end
+
+escape ret;
+]],
+    wrn = true,
+    run = 10,
+}
+
 -->> CODE / ALIAS
 
 Test { [[
@@ -36707,6 +37082,17 @@ await e;
 escape 1;
 ]],
     run = 1,
+}
+
+Test { [[
+every 1s do
+    spawn do end;
+    escape 1;
+end
+escape 0;
+]],
+    props_ = 'line 2 : invalid `spawn` : unexpected enclosing `every`',
+    run = { ['~>1s']=1 },
 }
 
 Test { [[
@@ -36915,7 +37301,7 @@ end
 spawn Ff();
 escape 1;
 ]],
-    run = '1] -> runtime error: reached end of `code`',
+    run = '3] -> runtime error: reached end of `code`',
     _opts = { ceu_features_trace='true' },
 }
 
@@ -37030,6 +37416,320 @@ escape ret;
     --inits = 'line 2 : uninitialized variable "p" : reached yielding statement (/tmp/tmp.ceu:3)',
 }
 
+-->> CODE / AWAIT / INLINE
+
+Test { [[
+code/await Ff (none) -> NEVER do
+    await FOREVER;
+end
+spawn Ff();
+escape 1;
+]],
+    run = 1,
+}
+
+Test { [[
+code/await Ff (none) -> none do
+end
+await Ff();
+escape 1;
+]],
+    run = 1,
+}
+
+Test { [[
+var int y = do escape 1; end;
+
+code/await Ff (none) -> int do
+    escape 1;
+end
+await Ff();
+escape 1;
+]],
+    run = 1,
+}
+Test { [[
+var int y = do escape 1; end;
+
+code/await Ff (none) -> int do
+    escape 1;
+end
+var int x = _;
+x = await Ff();
+escape x;
+]],
+    run = 1,
+}
+
+Test { [[
+code/tight Ff (none) -> int do
+    escape 1;
+end
+var int x = call Ff();
+escape x;
+]],
+    run = 1,
+}
+
+Test { [[
+code/tight Ff (none) -> bool do
+    escape true;
+end
+var bool x = call Ff();
+if x then
+    escape 1;
+else
+    escape 0;
+end
+]],
+    run = 1,
+}
+
+Test { [[
+code/await Ff (var int x) -> int do
+    escape x + 1;
+end
+var int x = await Ff(10);
+escape x;
+]],
+    run = 11,
+}
+
+Test { [[
+code/await Ff (var int x, var bool z) -> int do
+    if z then
+        escape x + 1;
+    else
+        escape x + 2;
+    end
+end
+var bool z = false;
+var int x = await Ff(10,z);
+escape x;
+]],
+    run = 12,
+}
+
+Test { [[
+code/tight Ff (var int x) -> int do
+    escape x + 1;
+end
+var int x = call Ff(10);
+escape x;
+]],
+    run = 11,
+}
+
+Test { [[
+code/tight Ff (var int x) -> int do
+    escape x + 1;
+end
+call Ff(10);
+escape 11;
+]],
+    run = 11,
+}
+
+Test { [[
+code/await Ff (var int x) -> int do
+    escape x + 1;
+end
+var int y = 10;
+var int ret = await Ff(y);
+escape ret;
+]],
+    run = 11,
+}
+
+Test { [[
+code/await Gg (var int y) -> int do
+    escape y + 1;
+end
+
+code/await Ff (var int x) -> int do
+    x = await Gg(x);
+    escape x;
+end
+var int y = 10;
+var int ret = await Ff(y);
+escape ret;
+]],
+    run = 11,
+}
+
+Test { [[
+code/await Gg (var int y) -> int do
+    escape {@y} + 1;
+end
+
+code/await Ff (var int x) -> int do
+    x = await Gg(x);
+    escape x;
+end
+var int y = 10;
+var int ret = await Ff(y);
+escape ret;
+]],
+    run = 11,
+}
+
+Test { [[
+code/await Ff (var int x) -> int do
+    escape x + 1;
+end
+var int y = 10;
+var int ret1 = await Ff(y);
+var int ret2 = await Ff(y);
+escape ret1+ret2;
+]],
+    run = 22,
+}
+
+Test { [[
+code/await Ff (var& int x) -> int do
+    escape x + 1;
+end
+var int y = 10;
+var int ret = await Ff(&y);
+escape ret;
+]],
+    run = 11,
+}
+
+Test { [[
+code/await Ff (var int x) -> int do
+    escape x + 1;
+end
+var int x = 10;
+var int ret = await Ff(x);
+escape ret;
+]],
+    run = 11,
+}
+
+Test { [[
+code/await Ff (var& int x) -> int do
+    escape x + 1;
+end
+var int x = 10;
+var int ret = await Ff(&x);
+escape ret;
+]],
+    run = 11,
+}
+
+Test { [[
+code/await Ff (var& int x) -> none do
+    x = x + 1;
+end
+var int x = 10;
+spawn Ff(&x);
+escape x;
+]],
+    run = 11,
+}
+
+Test { [[
+code/await Ff (var u8? x) -> u8 do
+    escape x!;
+end
+var u8? y = 10;
+var u8 v = await Ff(y!);
+escape v as int;
+]],
+    run = 10,
+}
+Test { [[
+code/await Ff (var u8 x) -> u8 do
+    escape x;
+end
+var u8? y = 10;
+var u8 v = await Ff(y!);
+escape v as int;
+]],
+    run = 10,
+}
+
+Test { [[
+code/await Gg (var u8 b) -> u8 do
+    escape b;
+end
+
+code/await Ff (var u8? v) -> u8 do
+    if v? then
+        var u8 a = await Gg(v!);
+        escape a;
+    else
+        escape 0;
+    end
+end
+var u8 x = await Ff(10);
+escape x as int;
+]],
+    run = 10,
+}
+
+Test { [[
+code/await Ff (none) -> none do
+end
+await Ff();
+await Ff();
+escape 1;
+]],
+    run = 1,
+}
+
+Test { [[
+code/await Ff (none) -> int do
+    loop do
+        if true then
+            break;
+        else
+            await 1s;
+        end
+    end
+    escape 10;
+end
+var int x = await Ff();
+escape x;
+]],
+    run = 10,
+}
+
+Test { [[
+code/await Gg (var& int x) -> NEVER;
+code/await Gg (var& int x) -> NEVER do
+    x = x + 1;
+    await FOREVER;
+end
+code/await Ff (var& int x) -> NEVER do
+    spawn Gg(&x);
+    await FOREVER;
+end
+var int x = 10;
+spawn Ff(&x);
+escape x;
+]],
+    run = 11,
+}
+
+Test { [[
+input none A;
+
+code/await Ff (none) -> bool do
+    escape true;
+end
+
+await Ff();
+await A;
+
+escape 100;
+]],
+    run = { ['~>A']=100 },
+}
+
+--<< CODE / AWAIT / INLINE
+
 -->> CODE / AWAIT / INITIALIZATION / PUBLIC
 
 Test { [[
@@ -37066,6 +37766,7 @@ Test { [[
 code/await UV_TCP_Open (none) -> (var& int v) -> none
 do
 end
+await UV_TCP_Open();
 var int x = 1;
 escape x;
 ]],
@@ -37547,6 +38248,7 @@ escape 1;
     _opts = { ceu_features_dynamic='true', ceu_features_pool='true' },
     run = { ['~>1s']=1 },
 }
+
 Test { [[
 code/await Ff (event& none e) -> none do
     emit e;
@@ -37780,7 +38482,8 @@ var int&& a =
 escape 0;
 ]],
     wrn = true,
-    stmts = 'line 4 : invalid assignment : types mismatch : "(int&&)" <= "(int)"',
+    --stmts = 'line 4 : invalid assignment : types mismatch : "(int&&)" <= "(int)"',
+    stmts = 'line 4 : invalid assignment : types mismatch : "int&&" <= "int"',
 }
 
 Test { [[
@@ -40182,6 +40885,28 @@ escape 10;
 }
 
 Test { [[
+code/await Ff (none) -> none do
+    await async do end;
+end
+
+code/await Gg (none) -> int
+do
+    pool[] Ff fs;
+    var&? Ff f = spawn Ff() in fs;
+    await f;
+    escape 10;
+end
+
+var int ret = await Gg();
+
+escape ret;
+]],
+    _opts = { ceu_features_dynamic='true', ceu_features_pool='true' },
+    run = 10,
+    --inits = 'line 8 : uninitialized variable "x" : reached yielding statement (/tmp/tmp.ceu:12)',
+}
+
+Test { [[
 code/await Ff (none) -> (var& int x) -> int
 do
     var int xx = 10;
@@ -41265,12 +41990,14 @@ end
 code/await Ff (none)->none do
     do finalize with
         _V = _V + 1;
+        //{printf(">>> V1 = %d\n", V);}
     end
     await FOREVER;
 end
 watching 1s do
     do finalize with
         _V = _V * 2;
+        //{printf(">>> V2 = %d\n", V);}
     end
     await Ff();
 end
@@ -41398,7 +42125,7 @@ end
 escape 0;
 ]],
     wrn = true,
-    stmts = 'line 2 : invalid `spawn` : unexpected recursive invocation',
+    stmts = 'line 2 : invalid `await` : unexpected recursive invocation',
 }
 
 Test { [[
@@ -41698,6 +42425,57 @@ escape ret;
 }
 
 -- BUG #100
+Test { [[
+event none a;
+var int ret = 0;
+
+spawn do
+    await async do end;
+    emit a;
+    ret = 10;
+    emit a;
+    ret = 20;
+end
+
+do
+    await a;
+end
+par/or do
+    await FOREVER;
+with
+    await a;
+end
+
+escape ret;
+]],
+    run = 10,
+}
+
+Test { [=[
+native/pre do
+    int V = 0;
+end
+
+code/await UV_FS_Write2 (none) -> none do
+    await 1s;
+    {V++;}
+end
+
+do
+    await 1s;
+end
+par/or do
+    await FOREVER;
+with
+    await UV_FS_Write2();
+end
+
+escape {V};
+]=],
+    wrn = true,
+    run = {['~>2s']=1},
+}
+
 Test { [=[
 native/pre do
     int V = 0;
@@ -41723,6 +42501,36 @@ escape {V};
     run = {['~>2s']=2},
 }
 
+Test { [[
+input none A;
+var int ret = 0;
+code/await Ff (none) -> none do
+    await A;
+    outer.ret = 10;
+end
+await Ff();
+escape ret+1;
+]],
+    run = {['~>A']=11},
+}
+
+Test { [[
+code/await Ff (none) -> none do
+end
+await Ff();
+escape 1;
+]],
+    run = 1,
+}
+Test { [[
+code/await Ff (none) -> NEVER do
+    await FOREVER;
+end
+var& Ff f = spawn Ff();
+escape 1;
+]],
+    run = 1,
+}
 --<<< CODE / AWAIT / FUNCTIONS
 
 -- TODO: SKIP-03
@@ -42065,6 +42873,27 @@ escape ret;
     _opts = { ceu_features_pool='true' },
     wrn = true,
     run = 3,
+}
+
+Test { [[
+code/await Gg (none) -> none do
+end
+
+code/await Ff (none) -> none do
+end
+
+pool[4] Gg gs;
+
+await Ff();
+
+loop _ in gs do
+end
+
+escape 1;
+]],
+    _opts = { ceu_features_pool='true' },
+    wrn = true,
+    run = 1,
 }
 
 Test { [[
@@ -42719,25 +43548,50 @@ code/await Ff (none) -> (var& int x, event& none e) -> none do
     await e_;
 end
 
+pool[1] Ff ffs;
+
+var&? Ff fa = spawn Ff() in ffs;
+
+emit fa!.e;
+
+var&? Ff fc = spawn Ff() in ffs;
+var bool b3 = fc?;                  // b3=1
+
+//{printf("%d %d %d %d\n", @b1, @b2, @b3, @b4);}
+escape (b3 as int);
+]],
+    _opts = { ceu_features_dynamic='true', ceu_features_pool='true' },
+    run = 1,
+}
+
+Test { [[
+code/await Ff (none) -> (var& int x, event& none e) -> none do
+    var int v = 10;
+    x = &v;
+    event none e_;
+    e = &e_;
+    await e_;
+end
+
 pool[2] Ff ffs;
 
 var&? Ff fa = spawn Ff() in ffs;
 var&? Ff fb = spawn Ff() in ffs;
-var bool b1 = fa?;
-var bool b2 = fb?;
+var bool b1 = fa?;                  // b1=1
+var bool b2 = fb?;                  // b2=1
 
 event none g;
 
-var int ret = 0;
+var int ret = 0;                    // ret=0
 watching g do
     var&? Ff f1;
     loop f1 in ffs do
         emit f1!.e;
         var&? Ff f2;
         loop f2 in ffs do
-            ret = ret + f2!.x;
+            ret = ret + f2!.x;              // ret=10
             emit f2!.e;
-            ret = ret + (f2? as int) + 1;
+            ret = ret + (f2? as int) + 1;   // ret=11
             emit g;
         end
     end
@@ -42745,9 +43599,10 @@ end
 
 var&? Ff fc = spawn Ff() in ffs;
 var&? Ff fd = spawn Ff() in ffs;
-var bool b3 = fc?;
-var bool b4 = fd?;
+var bool b3 = fc?;                  // b3=1
+var bool b4 = fd?;                  // b4=1
 
+//{printf("%d %d %d %d\n", @b1, @b2, @b3, @b4);}
 escape ret + (b1 as int) + (b2 as int) + (b3 as int) + (b4 as int);
 ]],
     _opts = { ceu_features_dynamic='true', ceu_features_pool='true' },
@@ -42962,10 +43817,10 @@ escape _V;
 
 Test { [[
 native _V;
-native/pure _f;
+native/pure _fff;
 native/nohold _ceu_assert;
 native/pos do
-    ##define f(x) x
+    ##define fff(x) x
     none* V;
 end
 
@@ -42988,7 +43843,7 @@ code/await Collisions (none) -> none do
     loop cloud1 in outer.clouds do
         var&? Cloud cloud2;
         loop cloud2 in outer.clouds do
-            _V = _f(&&cloud1!.i);
+            _V = _fff(&&cloud1!.i);
             spawn Collides();
             _ceu_assert(_V == &&cloud1!.i, "bug found");
         end
@@ -43117,6 +43972,25 @@ escape 1;
     wrn = true,
     scopes = 'line 13 : invalid binding : incompatible scopes',
 }
+
+Test { [[
+code/await Ff (none) -> none do
+end
+
+pool[1] Ff fs;
+var&? Ff f;
+event none e;
+watching e do
+    loop f in fs do
+        emit e;
+    end
+end
+escape 1;
+]],
+    run = 1,
+    _opts = { ceu_features_pool='true' },
+}
+
 --<< POOL / LOOP
 --||| TODO: POOL ITERATORS
 
@@ -43980,6 +44854,23 @@ await OS_START;
 
 escape _V;
 ]],
+    run = 1,
+}
+
+Test { [[
+code/await Ux (none)->none do
+end
+code/await Tx (none)->none do
+    await Ux();
+end
+do
+    pool[] Tx ts;
+    spawn Tx() in ts;
+end
+
+escape 1;
+]],
+    _opts = { ceu_features_dynamic='true', ceu_features_pool='true' },
     run = 1,
 }
 
@@ -47581,6 +48472,17 @@ escape t.v[0];
 }
 
 Test { [[
+data Dd with
+    var[10] byte x;
+end
+var Dd d = _;
+d.x = d.x..[1];
+escape d.x[0];
+]],
+    run = 1,
+}
+
+Test { [[
 native _u8;
 data Test with
   var[10] _u8 v;
@@ -47974,7 +48876,7 @@ var Vv yyy = val Vv(_);
 escape _CEU_APP.root.__mem.trails_n;
 ]],
     _opts = { ceu_features_dynamic='true' },
-    run = 2,
+    run = 3,
 }
 Test { [[
 native _CEU_APP;
@@ -47986,7 +48888,7 @@ var Vv zzz = val Vv(_,_);
 escape _CEU_APP.root.__mem.trails_n;
 ]],
     _opts = { ceu_features_dynamic='true' },
-    run = 3,
+    run = 5,
 }
 Test { [[
 native _CEU_APP;
@@ -48001,7 +48903,7 @@ end
 escape _CEU_APP.root.__mem.trails_n;
 ]],
     _opts = { ceu_features_dynamic='true' },
-    run = 4,
+    run = 6,
 }
 Test { [[
 data Vv with
@@ -49337,6 +50239,7 @@ escape 1;
 ]],
     run = 1,
     _opts = { ceu_features_dynamic='true', ceu_features_thread='true' },
+    valgrind = false,
 }
 Test { [[
 native _usleep;
@@ -49368,6 +50271,7 @@ escape 1;
 ]],
     run = 1,
     _opts = { ceu_features_dynamic='true', ceu_features_thread='true' },
+    valgrind = false,
 }
 
 Test { [[
@@ -50964,6 +51868,28 @@ escape 0;
     stmts = 'line 9 : invalid kill : `code/await` executes forever',
 }
 
+Test { [[
+code/await Ff (none) -> NEVER do
+    await FOREVER;
+end
+var& Ff f = spawn Ff();
+kill f;     // error
+escape 1;
+]],
+    stmts = 'line 5 : invalid `kill` : expected `&?` alias',
+}
+Test { [[
+input none A;
+code/await Ff (none) -> int do
+    await A;
+    escape 10;
+end
+var int v = await Ff();
+escape v+1;
+]],
+    run = {['~>A']=11},
+}
+
 --<< KILL
 
 -->> CODE / FINALIZE / EMIT / SPAWN / THREADS
@@ -51195,7 +52121,7 @@ await Ui_go(&ui);
 
 escape 1;
 ]],
-    stmts = 'line 9 : invalid `spawn` : expected `/dynamic` or `/static` modifier',
+    stmts = 'line 9 : invalid `await` : expected `/dynamic` or `/static` modifier',
     wrn = true,
     run = 1,
 }
@@ -51264,6 +52190,25 @@ var Aa.Bb b = val Aa.Bb(2,3);
 escape (call Ff(&&b,22)) + (call Ff(&&a,33));
 ]],
     dcls = 'line 20 : invalid call : expected `/dynamic` or `/static` modifier',
+}
+Test { [[
+data Aa with
+    var int x;
+end
+data Aa.Bb with
+    var int y;
+end
+
+code/tight/dynamic Ff (var/dynamic Aa&& a) -> int do
+    escape a:x;
+end
+
+var Aa i = val Aa(1);
+
+escape (call/dynamic Ff(&&i));
+]],
+    wrn = true,
+    run = 1,
 }
 Test { [[
 data Aa with
@@ -51405,8 +52350,7 @@ var Aa a = val Aa(1);
 await Ff(&a,22);
 escape 0;
 ]],
-    stmts = 'line 20 : invalid `spawn` : expected `/dynamic` or `/static` modifier',
-    --stmts = 'line 20 : invalid `await` : expected `/dynamic` or `/static` modifier',
+    stmts = 'line 20 : invalid `await` : expected `/dynamic` or `/static` modifier',
 }
 
 Test { [[
@@ -52948,6 +53892,33 @@ escape v1 + v2;
     run = 59,
 }
 
+Test { [[
+data My_Data;
+data My_Data.Aa with
+  var int x;
+end
+
+code/await/dynamic Code_A (var&/dynamic My_Data ddd) -> none do
+  //var int x;
+end
+
+code/await/dynamic Code_A (var&/dynamic My_Data.Aa ddd) -> none do
+  var int x = ddd.x; //it works if we remove this line
+    par/or do with with with end
+end
+
+var My_Data.Aa a = val My_Data.Aa(10);
+
+pool[] Code_A p;
+spawn/dynamic Code_A (&a) in p;
+
+escape 1;
+]],
+    _opts = { ceu_features_dynamic='true', ceu_features_pool='true' },
+    wrn = true,
+    run = 1,
+}
+
 --<< CODE / TIGHT / AWAIT / MULTIMETHODS / DYNAMIC
 
 -->>> ASYNCS / ISR / ATOMIC
@@ -53788,7 +54759,7 @@ end
 escape _CEU_APP.root.__mem.trails_n;
 ]],
     _opts = { ceu_features_isr='true' },
-    run = 2,
+    run = 3,
 }
 Test { [[
 native _CEU_APP;
@@ -53799,7 +54770,7 @@ end
 escape _CEU_APP.root.__mem.trails_n;
 ]],
     _opts = { ceu_features_isr='true' },
-    run = 3,
+    run = 5,
 }
 
 Test { [[
@@ -53813,18 +54784,18 @@ escape 1;
 }
 
 Test { [[
-native _X, _V, _U, _f;
+native _X, _V, _U, _fff;
 native/pre do
     ##define X 1
 end
 native/pos do
-    ##define f(x) 1
+    ##define fff(x) 1
     ##ifdef CEU_ISR__X
         int V = 1;
     ##else
         int V = 0;
     ##endif
-    ##ifdef CEU_ISR__f__lpar__0__rpar__
+    ##ifdef CEU_ISR__fff__lpar__0__rpar__
         int U = 1;
     ##else
         int U = 0;
@@ -53835,7 +54806,7 @@ end
 spawn async/isr [_X] do
     emit 1s;
 end
-spawn async/isr [_f(0)] do
+spawn async/isr [_fff(0)] do
     emit 1s;
 end
 escape _V+_U;
@@ -54032,6 +55003,20 @@ code/await Ff (none) -> int do
 end
 var int zzz = await Ff();
 escape zzz;
+]],
+    run = 20,
+}
+
+Test { [[
+code/tight Ff (var int xxx) -> int do
+    var int b = 0;
+    var int yyy = xxx;
+    code/tight Get (none) -> int do
+        escape outer.yyy + outer.xxx;
+    end
+    escape b + call Get();
+end
+escape call Ff(10);
 ]],
     run = 20,
 }

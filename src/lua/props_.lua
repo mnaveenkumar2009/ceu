@@ -68,7 +68,7 @@ PROPS_.F = {
                 end
 
                 ASR(false, me,
-                    'invalid `'..AST.tag2id[me.tag]..
+                    'invalid `'..(me.__spawns and 'spawn' or AST.tag2id[me.tag])..
                     '` : unexpected enclosing `'..AST.tag2id[par.tag]..'`')
             end
         end
@@ -146,7 +146,7 @@ PROPS_.F = {
     Code = function (me)
         local mods1,_,_,body = unpack(me)
         if mods1.dynamic and body then
-            local Pars_Block = AST.asr(body,'Block', 1,'Stmts', 2,'Do', 3,'Block')
+            local Pars_Block = me.__adjs_1
             for i, dcl in ipairs(Pars_Block.dcls) do
                 local _,_,_,mods2 = unpack(dcl)
                 if mods2.dynamic then
@@ -260,6 +260,10 @@ PROPS_.F = {
         ASR(CEU.opts.ceu_features_thread or CEU.opts.ceu_features_isr, me,
             '`atomic` support is disabled: enable `--ceu-features-thread` or `--ceu-features-isr`')
     end,
+
+    Pause_If = function (me)
+        ASR(CEU.opts.ceu_features_pause, me, '`pause/if` support is disabled')
+    end
 }
 
 AST.visit(PROPS_.F)

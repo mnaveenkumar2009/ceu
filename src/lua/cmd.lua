@@ -26,7 +26,6 @@ Options:
     --ceu-input=FILE                    input file to compile (Céu source)
     --ceu-output=FILE                   output source file to generate (C source)
     --ceu-line-directives=BOOL          insert `#line` directives in the C output (default `true`)
-    --ceu-callbacks-lines=BOOL          pass current filename and line number to callbacks (default `true`)
 
     --ceu-features-trace=BOOL           enable trace support (default `false`)
     --ceu-features-exception=BOOL       enable exceptions support (default `false`)
@@ -35,6 +34,7 @@ Options:
     --ceu-features-lua=BOOL             enable `lua` support (default `false`)
     --ceu-features-thread=BOOL          enable `async/thread` support (default `false`)
     --ceu-features-isr=BOOL             enable `async/isr` support (default `false`)
+    --ceu-features-pause=BOOL           enable `pause/if` support (default `false`)
 
     --ceu-err-unused=OPT                effect for unused identifier: error|warning|pass
     --ceu-err-unused-native=OPT                    unused native identifier
@@ -141,6 +141,7 @@ do
         ceu_features_lua       = { toboolean, 'false' },
         ceu_features_thread    = { toboolean, 'false' },
         ceu_features_isr       = { toboolean, 'false' },
+        ceu_features_pause     = { toboolean, 'false' },
 
         env_output             = { tostring,  '-'     },
     }
